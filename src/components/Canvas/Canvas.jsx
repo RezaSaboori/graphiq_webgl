@@ -13,7 +13,7 @@ const Canvas = () => {
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
   // Use custom hook for WebGL renderer
-  const { updateScene, isInitialized } = useWebGLRenderer(canvasRef);
+  const { updateScene, isInitialized } = useWebGLRenderer(canvasRef, initialCards, initialArrows);
 
   // Update renderer when cards or arrows change
   useEffect(() => {

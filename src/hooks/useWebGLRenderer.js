@@ -1,7 +1,7 @@
 import { useRef, useEffect, useCallback } from 'react';
 import { WebGLRenderer } from '../webgl/Renderer';
 
-export const useWebGLRenderer = (canvasRef) => {
+export const useWebGLRenderer = (canvasRef, initialCards = [], initialArrows = []) => {
   const rendererRef = useRef(null);
   const animationFrameRef = useRef(null);
 
@@ -11,6 +11,8 @@ export const useWebGLRenderer = (canvasRef) => {
       try {
         rendererRef.current = new WebGLRenderer(canvasRef.current);
         rendererRef.current.init();
+        // Pass initial scene data immediately after initialization
+        rendererRef.current.updateScene(initialCards, initialArrows);
         return true;
       } catch (error) {
         console.error('Failed to initialize WebGL renderer:', error);
@@ -18,7 +20,7 @@ export const useWebGLRenderer = (canvasRef) => {
       }
     }
     return false;
-  }, [canvasRef]);
+  }, [canvasRef, initialCards, initialArrows]);
 
   // Update scene data
   const updateScene = useCallback((cards, arrows) => {

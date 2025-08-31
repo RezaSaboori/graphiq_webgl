@@ -14,9 +14,7 @@ const Card = ({ card, isDragging }) => {
     top: `${y * scaleY}px`,
     width: `${width * scaleX}px`,
     height: `${height * scaleY}px`,
-    zIndex: isDragging ? 1000 : 10,
-    transform: isDragging ? 'scale(1.05)' : 'scale(1)',
-    transition: isDragging ? 'none' : 'transform 0.1s ease-out',
+    zIndex: isDragging ? 1000000 : 10,
   };
 
   return (
