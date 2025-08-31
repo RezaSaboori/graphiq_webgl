@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGL2 High-Performance Instanced Arrows</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #1a1a1a;
+        }
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gl-canvas"></canvas>
+
+    <!-- Original Shaders for Cards -->
+    <script id="card-vertex-shader" type="x-shader/x-vertex">#version 300 es
+        in vec2 a_position;
+        uniform mat4 u_projectionMatrix;
+        uniform mat4 u_modelViewMatrix;
+        void main() {
+            gl_Position = u_projectionMatrix * u_modelViewMatrix * vec4(a_position, 0.0, 1.0);
+        }
+    </script>
+    <script id="card-fragment-shader" type="x-shader/x-fragment">#version 300 es
+        precision highp float;
+        uniform vec4 u_color;
+        out vec4 outColor;
+        void main() {
+            outColor = u_color;
+        }
+    </script>
+
+    <!-- New Instanced Shaders for Arrow Curves -->
+    <script id="arrow-vertex-shader" type="x-shader/x-vertex">#version 300 es
+        // Per-vertex attribute (from the template buffer)
+        in float a_t; // Value from 0.0 to 1.0 representing position on the curve
+
+        // Per-instance attributes (one set of values per arrow)
+        in vec2 a_p0; // start point
+        in vec2 a_p1; // control point 1
+        in vec2 a_p2; // control point 2
+        in vec2 a_p3; // end point
+        in vec4 a_color;
+
+        uniform mat4 u_projectionMatrix;
+        out vec4 v_color;
+
+        // Bézier calculation function now lives on the GPU
+        vec2 cubicBezier(vec2 p0, vec2 p1, vec2 p2, vec2 p3, float t) {
+            float t_inv = 1.0 - t;
+            float t_inv_sq = t_inv * t_inv;
+            float t_sq = t * t;
+            return (t_inv_sq * t_inv * p0) +
+                   (3.0 * t_inv_sq * t * p1) +
+                   (3.0 * t_inv * t_sq * p2) +
+                   (t_sq * t * p3);
+        }
+
+        void main() {
+            vec2 position = cubicBezier(a_p0, a_p1, a_p2, a_p3, a_t);
+            gl_Position = u_projectionMatrix * vec4(position, 0.0, 1.0);
+            v_color = a_color;
+        }
+    </script>
+    <script id="arrow-fragment-shader" type="x-shader/x-fragment">#version 300 es
+        precision highp float;
+        in vec4 v_color;
+        out vec4 outColor;
+        void main() {
+            outColor = v_color;
+        }
+    </script>
+    
+    <!-- New Instanced Shaders for Arrow Heads -->
+    <script id="arrowhead-vertex-shader" type="x-shader/x-vertex">#version 300 es
+        // Per-vertex attribute (from the V-shape template buffer)
+        in vec2 a_position;
+
+        // Per-instance attributes
+        in vec2 a_translation; // End point of the curve
+        in float a_rotation;    // Rotation in radians
+        in vec4 a_color;
+
+        uniform mat4 u_projectionMatrix;
+        out vec4 v_color;
+
+        void main() {
+            float c = cos(a_rotation);
+            float s = sin(a_rotation);
+            mat2 scale = mat2(20.0, 0.0, 0.0, 20.0); // Arrowhead size
+            // Corrected CCW rotation matrix
+            mat2 rotation = mat2(c, s, -s, c);
+            
+            vec2 final_pos = rotation * scale * a_position + a_translation;
+            
+            gl_Position = u_projectionMatrix * vec4(final_pos, 0.0, 1.0);
+            v_color = a_color;
+        }
+    </script>
+
+    <script type="module">
+        // --- Main Application ---
+        let gl;
+        let canvas;
+        let cardShaderProgram, arrowShaderProgram, arrowheadShaderProgram;
+
+        // Shader program locations
+        let cardPositionLoc, cardProjectionLoc, cardModelViewLoc, cardColorLoc;
+        let arrowTLoc, arrowP0Loc, arrowP1Loc, arrowP2Loc, arrowP3Loc, arrowColorLoc, arrowProjectionLoc;
+        let arrowheadPositionLoc, arrowheadTranslationLoc, arrowheadRotationLoc, arrowheadColorLoc, arrowheadProjectionLoc;
+
+        // Buffers
+        let quadBuffer;
+        let arrowCurveTemplateBuffer;
+        let arrowInstanceBuffer;
+        let arrowHeadTemplateBuffer;
+        let arrowHeadInstanceBuffer;
+        let vaoMap = new Map();
+
+        // World constants
+        const WORLD_WIDTH = 1920;
+        const WORLD_HEIGHT = 1080;
+        const ARROW_SEGMENTS = 40;
+
+        // Scene objects
+        const cards = [
+            { id: 1, x: 150, y: 200, width: 250, height: 150, color: [0.2, 0.5, 0.8, 1.0], text: "Card 1" },
+            { id: 2, x: 600, y: 500, width: 250, height: 150, color: [0.8, 0.2, 0.5, 1.0], text: "Card 2" },
+            { id: 3, x: 1000, y: 150, width: 250, height: 150, color: [0.2, 0.8, 0.5, 1.0], text: "Card 3" },
+            { id: 4, x: 1500, y: 600, width: 250, height: 150, color: [0.9, 0.6, 0.1, 1.0], text: "Card 4" },
+        ];
+
+        const arrows = [
+            { from: 1, to: 2, color: [0.9, 0.9, 0.9, 1.0] },
+            { from: 2, to: 3, color: [0.9, 0.9, 0.9, 1.0] },
+            { from: 3, to: 4, color: [0.9, 0.9, 0.9, 1.0] },
+        ];
+
+        let draggedCard = null, dragOffsetX = 0, dragOffsetY = 0;
+
+        // --- Proto-Arrows Library ---
+        const protoArrows = (() => {
+            function getBoxBounds(box) { return [{x:box.x,y:box.y+box.h/2},{x:box.x+box.w,y:box.y+box.h/2},{x:box.x+box.w/2,y:box.y},{x:box.x+box.w/2,y:box.y+box.h}]; }
+            function euclideanDistance(a, b) { return Math.hypot(a.x-b.x, a.y-b.y); }
+            function getIdealBoxSides(startBox, endBox) {
+                const startPts=getBoxBounds(startBox), endPts=getBoxBounds(endBox);
+                let minDistance=Infinity, startPoint={x:0,y:0}, endPoint={x:0,y:0};
+                for(const pA of startPts) for(const pB of endPts) { const d=euclideanDistance(pA,pB); if(d<minDistance){minDistance=d;startPoint=pA;endPoint=pB;}}
+                return {startPoint,endPoint};
+            }
+            function isPointOnLeftOrRightSide(p, b){ return p.x===b.x || p.x===b.x+b.w; }
+            const CPO = 0.75;
+            function getCurve(start, end, options) {
+                const dX=(end.x-start.x)*(options?.flip?CPO:0), dY=(end.y-start.y)*(options?.flip?0:-CPO);
+                return {start, control1:{x:start.x+dX,y:start.y-dY}, control2:{x:end.x-dX,y:end.y+dY}, end};
+            }
+            function getBoxToBoxCurve(startBox, endBox) {
+                const {startPoint,endPoint}=getIdealBoxSides(startBox,endBox);
+                const flip=isPointOnLeftOrRightSide(startPoint,startBox) && isPointOnLeftOrRightSide(endPoint,endBox);
+                return getCurve(startPoint,endPoint,{flip});
+            }
+            function interpolateCubicBezierAngle({start,control1,control2,end},t){
+                const tX=3*Math.pow(1-t,2)*(control1.x-start.x)+6*(1-t)*t*(control2.x-control1.x)+3*Math.pow(t,2)*(end.x-control2.x);
+                const tY=3*Math.pow(1-t,2)*(control1.y-start.y)+6*(1-t)*t*(control2.y-control1.y)+3*Math.pow(t,2)*(end.y-control2.y);
+                return Math.atan2(tY,tX)*(180/Math.PI);
+            }
+            return { getBoxToBoxCurve, interpolateCubicBezierAngle };
+        })();
+
+        // --- Matrix Math Helpers ---
+        const mat4={create:()=>[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1],ortho:(l,r,b,t,n,f)=>{const lr=1/(l-r),bt=1/(b-t),nf=1/(n-f),o=mat4.create();o[0]=-2*lr;o[5]=-2*bt;o[10]=2*nf;o[12]=(l+r)*lr;o[13]=(t+b)*bt;o[14]=(f+n)*nf;return o;},translate:(m,v)=>{const o=[...m];o[12]=m[12]+m[0]*v[0]+m[4]*v[1]+m[8]*v[2];o[13]=m[13]+m[1]*v[0]+m[5]*v[1]+m[9]*v[2];o[14]=m[14]+m[2]*v[0]+m[6]*v[1]+m[10]*v[2];return o;},scale:(m,v)=>{const o=[...m];o[0]=m[0]*v[0];o[1]=m[1]*v[0];o[2]=m[2]*v[0];o[4]=m[4]*v[1];o[5]=m[5]*v[1];o[6]=m[6]*v[1];o[8]=m[8]*v[2];o[9]=m[9]*v[2];o[10]=m[10]*v[2];return o;},rotateZ:(m,r)=>{const s=Math.sin(r),c=Math.cos(r),a00=m[0],a01=m[1],a10=m[4],a11=m[5],o=[...m];o[0]=a00*c+a10*s;o[1]=a01*c+a11*s;o[4]=a10*c-a00*s;o[5]=a11*c-a01*s;return o;}};
+
+        function main() {
+            canvas = document.getElementById('gl-canvas');
+            gl = canvas.getContext('webgl2');
+            if (!gl) { console.error("WebGL2 not supported!"); return; }
+
+            setupShaders();
+            setupBuffers();
+            setupEventListeners();
+            requestAnimationFrame(drawScene);
+        }
+
+        function setupShaders() {
+            cardShaderProgram = createProgramFromScripts(gl, "card-vertex-shader", "card-fragment-shader");
+            arrowShaderProgram = createProgramFromScripts(gl, "arrow-vertex-shader", "arrow-fragment-shader");
+            arrowheadShaderProgram = createProgramFromScripts(gl, "arrowhead-vertex-shader", "arrow-fragment-shader");
+            
+            cardPositionLoc = gl.getAttribLocation(cardShaderProgram, 'a_position');
+            cardProjectionLoc = gl.getUniformLocation(cardShaderProgram, 'u_projectionMatrix');
+            cardModelViewLoc = gl.getUniformLocation(cardShaderProgram, 'u_modelViewMatrix');
+            cardColorLoc = gl.getUniformLocation(cardShaderProgram, 'u_color');
+
+            arrowTLoc = gl.getAttribLocation(arrowShaderProgram, 'a_t');
+            arrowP0Loc = gl.getAttribLocation(arrowShaderProgram, 'a_p0');
+            arrowP1Loc = gl.getAttribLocation(arrowShaderProgram, 'a_p1');
+            arrowP2Loc = gl.getAttribLocation(arrowShaderProgram, 'a_p2');
+            arrowP3Loc = gl.getAttribLocation(arrowShaderProgram, 'a_p3');
+            arrowColorLoc = gl.getAttribLocation(arrowShaderProgram, 'a_color');
+            arrowProjectionLoc = gl.getUniformLocation(arrowShaderProgram, 'u_projectionMatrix');
+
+            arrowheadPositionLoc = gl.getAttribLocation(arrowheadShaderProgram, 'a_position');
+            arrowheadTranslationLoc = gl.getAttribLocation(arrowheadShaderProgram, 'a_translation');
+            arrowheadRotationLoc = gl.getAttribLocation(arrowheadShaderProgram, 'a_rotation');
+            arrowheadColorLoc = gl.getAttribLocation(arrowheadShaderProgram, 'a_color');
+            arrowheadProjectionLoc = gl.getUniformLocation(arrowheadShaderProgram, 'u_projectionMatrix');
+        }
+
+        function setupBuffers() {
+            quadBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0,0, 1,0, 0,1, 0,1, 1,0, 1,1]), gl.STATIC_DRAW);
+
+            const tValues = [];
+            for (let i = 0; i <= ARROW_SEGMENTS; i++) { tValues.push(i / ARROW_SEGMENTS); }
+            arrowCurveTemplateBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, arrowCurveTemplateBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(tValues), gl.STATIC_DRAW);
+
+            arrowHeadTemplateBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, arrowHeadTemplateBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, 0.5, 0, 0, -1, -0.5]), gl.STATIC_DRAW);
+
+            arrowInstanceBuffer = gl.createBuffer();
+            arrowHeadInstanceBuffer = gl.createBuffer();
+        }
+
+        function setupVAOs() {
+            const cardVao = gl.createVertexArray();
+            gl.bindVertexArray(cardVao);
+            gl.enableVertexAttribArray(cardPositionLoc);
+            gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
+            gl.vertexAttribPointer(cardPositionLoc, 2, gl.FLOAT, false, 0, 0);
+            vaoMap.set('cards', cardVao);
+
+            const arrowVao = gl.createVertexArray();
+            gl.bindVertexArray(arrowVao);
+            gl.enableVertexAttribArray(arrowTLoc);
+            gl.bindBuffer(gl.ARRAY_BUFFER, arrowCurveTemplateBuffer);
+            gl.vertexAttribPointer(arrowTLoc, 1, gl.FLOAT, false, 0, 0);
+            gl.bindBuffer(gl.ARRAY_BUFFER, arrowInstanceBuffer);
+            const arrowStride = (4 * 2 + 4) * 4;
+            gl.enableVertexAttribArray(arrowP0Loc);
+            gl.vertexAttribPointer(arrowP0Loc, 2, gl.FLOAT, false, arrowStride, 0);
+            gl.vertexAttribDivisor(arrowP0Loc, 1);
+            gl.enableVertexAttribArray(arrowP1Loc);
+            gl.vertexAttribPointer(arrowP1Loc, 2, gl.FLOAT, false, arrowStride, 8);
+            gl.vertexAttribDivisor(arrowP1Loc, 1);
+            gl.enableVertexAttribArray(arrowP2Loc);
+            gl.vertexAttribPointer(arrowP2Loc, 2, gl.FLOAT, false, arrowStride, 16);
+            gl.vertexAttribDivisor(arrowP2Loc, 1);
+            gl.enableVertexAttribArray(arrowP3Loc);
+            gl.vertexAttribPointer(arrowP3Loc, 2, gl.FLOAT, false, arrowStride, 24);
+            gl.vertexAttribDivisor(arrowP3Loc, 1);
+            gl.enableVertexAttribArray(arrowColorLoc);
+            gl.vertexAttribPointer(arrowColorLoc, 4, gl.FLOAT, false, arrowStride, 32);
+            gl.vertexAttribDivisor(arrowColorLoc, 1);
+            vaoMap.set('arrows', arrowVao);
+            
+            const arrowheadVao = gl.createVertexArray();
+            gl.bindVertexArray(arrowheadVao);
+            gl.enableVertexAttribArray(arrowheadPositionLoc);
+            gl.bindBuffer(gl.ARRAY_BUFFER, arrowHeadTemplateBuffer);
+            gl.vertexAttribPointer(arrowheadPositionLoc, 2, gl.FLOAT, false, 0, 0);
+            gl.bindBuffer(gl.ARRAY_BUFFER, arrowHeadInstanceBuffer);
+            const arrowheadStride = (2 + 1 + 4) * 4;
+            gl.enableVertexAttribArray(arrowheadTranslationLoc);
+            gl.vertexAttribPointer(arrowheadTranslationLoc, 2, gl.FLOAT, false, arrowheadStride, 0);
+            gl.vertexAttribDivisor(arrowheadTranslationLoc, 1);
+            gl.enableVertexAttribArray(arrowheadRotationLoc);
+            gl.vertexAttribPointer(arrowheadRotationLoc, 1, gl.FLOAT, false, arrowheadStride, 8);
+            gl.vertexAttribDivisor(arrowheadRotationLoc, 1);
+            gl.enableVertexAttribArray(arrowheadColorLoc);
+            gl.vertexAttribPointer(arrowheadColorLoc, 4, gl.FLOAT, false, arrowheadStride, 12);
+            gl.vertexAttribDivisor(arrowheadColorLoc, 1);
+            vaoMap.set('arrowheads', arrowheadVao);
+
+            gl.bindVertexArray(null);
+        }
+
+        function drawScene() {
+            resizeCanvasToDisplaySize(gl.canvas);
+            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+            gl.clearColor(0.1, 0.12, 0.15, 1.0);
+            // Enable depth testing for z-index
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+            gl.enable(gl.DEPTH_TEST);
+            
+            const projectionMatrix = mat4.ortho(0, WORLD_WIDTH, WORLD_HEIGHT, 0, -1, 1);
+
+            drawCards(projectionMatrix);
+            drawInstancedArrows(projectionMatrix);
+
+            requestAnimationFrame(drawScene);
+        }
+
+        function drawCards(projectionMatrix) {
+            gl.useProgram(cardShaderProgram);
+            gl.bindVertexArray(vaoMap.get('cards'));
+            gl.uniformMatrix4fv(cardProjectionLoc, false, projectionMatrix);
+
+            // Create a copy and sort by ID to control drawing order (z-index)
+            // Lower IDs are drawn first (further back).
+            const sortedCards = [...cards].sort((a, b) => a.id - b.id);
+
+            sortedCards.forEach(card => {
+                let z;
+                // If this card is being dragged, give it a very high z-index to bring it to the front.
+                if (card === draggedCard) {
+                    z = 0.5; // A high value to ensure it's in front of everything else.
+                } else {
+                    // Otherwise, use its ID to determine its static depth.
+                    z = -0.1 * card.id;
+                }
+                
+                let modelViewMatrix = mat4.create();
+                modelViewMatrix = mat4.translate(modelViewMatrix, [card.x, card.y, z]);
+                modelViewMatrix = mat4.scale(modelViewMatrix, [card.width, card.height, 1]);
+                
+                gl.uniformMatrix4fv(cardModelViewLoc, false, modelViewMatrix);
+                gl.uniform4fv(cardColorLoc, card.color);
+                gl.drawArrays(gl.TRIANGLES, 0, 6);
+            });
+            gl.bindVertexArray(null);
+        }
+
+        function drawInstancedArrows(projectionMatrix) {
+            const arrowInstanceData = [];
+            const arrowheadInstanceData = [];
+            
+            arrows.forEach(arrow => {
+                const fromCard = cards.find(c => c.id === arrow.from);
+                const toCard = cards.find(c => c.id === arrow.to);
+                if (!fromCard || !toCard) return;
+
+                const startBox = { x: fromCard.x, y: fromCard.y, w: fromCard.width, h: fromCard.height };
+                const endBox = { x: toCard.x, y: toCard.y, w: toCard.width, h: toCard.height };
+                const curve = protoArrows.getBoxToBoxCurve(startBox, endBox);
+
+                arrowInstanceData.push(
+                    curve.start.x, curve.start.y,
+                    curve.control1.x, curve.control1.y,
+                    curve.control2.x, curve.control2.y,
+                    curve.end.x, curve.end.y,
+                    ...arrow.color
+                );
+
+                const endAngleRad = protoArrows.interpolateCubicBezierAngle(curve, 1) * (Math.PI / 180);
+                arrowheadInstanceData.push(
+                    curve.end.x, curve.end.y,
+                    endAngleRad,
+                    ...arrow.color
+                );
+            });
+
+            if (arrows.length === 0) return;
+
+            gl.useProgram(arrowShaderProgram);
+            gl.uniformMatrix4fv(arrowProjectionLoc, false, projectionMatrix);
+            gl.bindVertexArray(vaoMap.get('arrows'));
+            gl.bindBuffer(gl.ARRAY_BUFFER, arrowInstanceBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(arrowInstanceData), gl.DYNAMIC_DRAW);
+            gl.drawArraysInstanced(gl.LINE_STRIP, 0, ARROW_SEGMENTS + 1, arrows.length);
+
+            gl.useProgram(arrowheadShaderProgram);
+            gl.uniformMatrix4fv(arrowheadProjectionLoc, false, projectionMatrix);
+            gl.bindVertexArray(vaoMap.get('arrowheads'));
+            gl.bindBuffer(gl.ARRAY_BUFFER, arrowHeadInstanceBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(arrowheadInstanceData), gl.DYNAMIC_DRAW);
+            gl.drawArraysInstanced(gl.LINE_STRIP, 0, 3, arrows.length);
+
+            gl.bindVertexArray(null);
+        }
+
+        function onMouseDown(event) {
+            const { x, y } = getMouseWorldCoordinates(event);
+            
+            // Sort cards by ID descending to check the top-most card first for interaction.
+            const sortedCards = [...cards].sort((a, b) => b.id - a.id);
+
+            for (const card of sortedCards) {
+                if (x >= card.x && x <= card.x + card.width && y >= card.y && y <= card.y + card.height) {
+                    // Find the original card object to modify its properties
+                    draggedCard = cards.find(originalCard => originalCard.id === card.id);
+                    if (draggedCard) {
+                        dragOffsetX = x - draggedCard.x;
+                        dragOffsetY = y - draggedCard.y;
+                        break; // Stop after finding the top-most card
+                    }
+                }
+            }
+        }
+
+        function getMouseWorldCoordinates(event){const r=canvas.getBoundingClientRect();return{x:(event.clientX-r.left)/r.width*WORLD_WIDTH,y:(event.clientY-r.top)/r.height*WORLD_HEIGHT};}
+        function onMouseMove(event){if(draggedCard){const{x,y}=getMouseWorldCoordinates(event);draggedCard.x=x-dragOffsetX;draggedCard.y=y-dragOffsetY;}}
+        function onMouseUp(){draggedCard=null;}
+        function setupEventListeners(){canvas.addEventListener('mousedown',onMouseDown);canvas.addEventListener('mousemove',onMouseMove);canvas.addEventListener('mouseup',onMouseUp);canvas.addEventListener('mouseleave',onMouseUp);}
+
+        function createShader(gl,type,source){const s=gl.createShader(type);gl.shaderSource(s,source);gl.compileShader(s);if(gl.getShaderParameter(s,gl.COMPILE_STATUS))return s;console.error("Shader error:",gl.getShaderInfoLog(s));gl.deleteShader(s);}
+        function createProgram(gl,vs,fs){const p=gl.createProgram();gl.attachShader(p,vs);gl.attachShader(p,fs);gl.linkProgram(p);if(gl.getProgramParameter(p,gl.LINK_STATUS))return p;console.error("Program error:",gl.getProgramInfoLog(p));gl.deleteProgram(p);}
+        function createProgramFromScripts(gl, vsId, fsId){
+            const vsSource = document.getElementById(vsId).text.trim();
+            const fsSource = document.getElementById(fsId).text.trim();
+            const vs = createShader(gl, gl.VERTEX_SHADER, vsSource);
+            const fs = createShader(gl, gl.FRAGMENT_SHADER, fsSource);
+            return createProgram(gl, vs, fs);
+        }
+        function resizeCanvasToDisplaySize(c){const dW=c.clientWidth,dH=c.clientHeight;if(c.width!==dW||c.height!==dH){c.width=dW;c.height=dH;return true;}return false;}
+
+        window.onload = () => {
+            main();
+            setupVAOs();
+        };
+    </script>
+</body>
+</html>
+
+
