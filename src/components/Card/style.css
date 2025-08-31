@@ -1,48 +1,75 @@
 .card-overlay {
-  background: rgba(255, 255, 255, 0.5);
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  padding: 12px;
+  background: #1a1a1a;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  padding: 16px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   pointer-events: none;
   z-index: 10;
+  min-height: fit-content;
+  display: flex;
+  flex-direction: column;
 }
 
 .card-header {
-  margin-bottom: 8px;
+  margin-bottom: 12px;
 }
 
-.card-title {
-  margin: 0;
-  font-size: 16px;
+.card-labels {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.label-item {
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 14px;
   font-weight: 600;
-  color: #333;
+  color: white;
   line-height: 1.2;
+  white-space: nowrap;
 }
 
-.card-content {
-  font-size: 12px;
+.label-item.primary {
+  background: #856740;
+}
+
+.label-item.secondary {
+  background: #8B0000;
 }
 
 .card-properties {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.properties-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.property-item {
+  background: #24232D;
+  padding: 10px 12px;
+  border-radius: 8px;
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.property-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
 .property-key {
-  font-weight: 500;
-  color: #666;
-  margin-right: 8px;
+  font-weight: 600;
+  color: #FFC800;
+  font-size: 13px;
 }
 
 .property-value {
-  color: #333;
+  color: rgba(255, 255, 255, 0.9);
   font-weight: 400;
+  font-size: 12px;
+  line-height: 1.4;
+  word-wrap: break-word;
 }

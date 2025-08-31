@@ -22,11 +22,14 @@ const Card = ({ card, camera, canvas, isDragging }) => {
   return (
     <div className="card-overlay" style={cardStyle}>
       <div className="card-header">
-        <h3 className="card-title">{text}</h3>
+        <div className="card-labels">
+          <span className="label-item primary">{text}</span>
+          <span className="label-item secondary">Unspecified</span>
+        </div>
       </div>
-      <div className="card-content">
+      <div className="card-properties">
         {properties && (
-          <div className="card-properties">
+          <div className="properties-list">
             {Object.entries(properties).map(([key, value]) => (
               <div key={key} className="property-item">
                 <span className="property-key">{key}:</span>

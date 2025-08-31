@@ -3,60 +3,55 @@ export const initialCards = [
     id: 1, 
     x: 150, 
     y: 200, 
-    width: 250, 
-    height: 150, 
+    width: 280, 
+    height: 180, 
     color: [0.2, 0.5, 0.8, 1.0], 
-    text: "Input Node", 
+    text: "family history", 
     properties: { 
-      type: "Input", 
-      status: "Active",
-      dataType: "JSON",
-      frequency: "1Hz"
+      name: "Family history of diseases of the blood or blood-forming organs",
+      exclusions: "Occupational exposure to risk-factors"
     } 
   },
   { 
     id: 2, 
     x: 600, 
     y: 500, 
-    width: 250, 
-    height: 150, 
+    width: 280, 
+    height: 180, 
     color: [0.8, 0.2, 0.5, 1.0], 
-    text: "Process Node", 
+    text: "medical condition", 
     properties: { 
-      type: "Process", 
-      status: "Pending",
-      algorithm: "ML Model",
-      batchSize: "1000"
+      diagnosis: "Type 2 Diabetes Mellitus",
+      severity: "Moderate",
+      onset: "Adult onset"
     } 
   },
   { 
     id: 3, 
     x: 1000, 
     y: 150, 
-    width: 250, 
-    height: 150, 
+    width: 280, 
+    height: 180, 
     color: [0.2, 0.8, 0.5, 1.0], 
-    text: "Output Node", 
+    text: "medication", 
     properties: { 
-      type: "Output", 
-      status: "Complete",
-      format: "CSV",
-      destination: "S3"
+      name: "Metformin Hydrochloride",
+      dosage: "500mg twice daily",
+      route: "Oral"
     } 
   },
   { 
     id: 4, 
     x: 1500, 
     y: 600, 
-    width: 250, 
-    height: 150, 
+    width: 280, 
+    height: 180, 
     color: [0.9, 0.6, 0.1, 1.0], 
-    text: "Storage Node", 
+    text: "symptom", 
     properties: { 
-      type: "Storage", 
-      status: "Ready",
-      engine: "PostgreSQL",
-      capacity: "1TB"
+      description: "Chronic fatigue and weakness",
+      duration: "3 months",
+      frequency: "Daily"
     } 
   },
 ];
