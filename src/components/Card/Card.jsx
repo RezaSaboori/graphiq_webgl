@@ -1,20 +1,22 @@
 import React from 'react';
+import { worldToScreen, worldToScreenSize } from '../../webgl/utils/coordinate-utils';
 import './style.css';
 
-const Card = ({ card, isDragging }) => {
+const Card = ({ card, camera, canvas, isDragging }) => {
   const { x, y, width, height, text, properties } = card;
   
-  // Convert world coordinates to CSS coordinates
-  const scaleX = window.innerWidth / 1920;
-  const scaleY = window.innerHeight / 1080;
+  // Convert world coordinates to screen coordinates using camera
+  const screenPos = worldToScreen(x, y, camera, canvas);
+  const screenSize = worldToScreenSize(width, height, camera);
   
   const cardStyle = {
     position: 'absolute',
-    left: `${x * scaleX}px`,
-    top: `${y * scaleY}px`,
-    width: `${width * scaleX}px`,
-    height: `${height * scaleY}px`,
+    left: `${screenPos.left}px`,
+    top: `${screenPos.top}px`,
+    width: `${screenSize.width}px`,
+    height: `${screenSize.height}px`,
     zIndex: isDragging ? 1000000 : 10,
+    // Removed transform: scale() since coordinate transformation already handles zoom
   };
 
   return (

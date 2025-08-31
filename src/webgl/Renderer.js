@@ -363,9 +363,10 @@ void main() {
     this.gl.bindVertexArray(null);
   }
 
-  updateScene(cards, arrows) {
+  updateScene(cards, arrows, camera = null) {
     this.cards = cards;
     this.arrows = arrows;
+    this.camera = camera || { x: 0, y: 0, zoom: 1.0 };
   }
 
   render() {
@@ -376,7 +377,18 @@ void main() {
     this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
     this.gl.enable(this.gl.DEPTH_TEST);
     
-    const projectionMatrix = mat4.ortho(0, this.WORLD_WIDTH, this.WORLD_HEIGHT, 0, -1, 1);
+    // Use camera for projection matrix calculation
+    let projectionMatrix;
+    if (this.camera) {
+      const left = this.camera.x;
+      const right = this.camera.x + (this.gl.canvas.width / this.camera.zoom);
+      const top = this.camera.y;
+      const bottom = this.camera.y + (this.gl.canvas.height / this.camera.zoom);
+      projectionMatrix = mat4.ortho(left, right, bottom, top, -1, 1);
+    } else {
+      // Fallback to original projection if no camera
+      projectionMatrix = mat4.ortho(0, this.WORLD_WIDTH, this.WORLD_HEIGHT, 0, -1, 1);
+    }
 
     this.drawCards(projectionMatrix);
     this.drawInstancedArrows(projectionMatrix);

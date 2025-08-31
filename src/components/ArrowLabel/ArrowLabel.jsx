@@ -1,8 +1,9 @@
 import React from 'react';
 import { getBoxToBoxCurve, interpolateCubicBezier, interpolateCubicBezierAngle } from '../../webgl/utils/proto-arrows';
+import { worldToScreen, worldToScreenSize } from '../../webgl/utils/coordinate-utils';
 import './style.css';
 
-const ArrowLabel = ({ arrow, fromCard, toCard }) => {
+const ArrowLabel = ({ arrow, fromCard, toCard, camera, canvas }) => {
   const { label, labelWidth, labelHeight } = arrow;
   
   // Use the same curve calculation as the WebGL renderer
@@ -16,17 +17,19 @@ const ArrowLabel = ({ arrow, fromCard, toCard }) => {
   // Calculate the rotation angle at the midpoint to match the WebGL background
   const midAngleRad = interpolateCubicBezierAngle(curve, 0.5) * (Math.PI / 180);
   
-  // Convert world coordinates to CSS coordinates
-  const scaleX = window.innerWidth / 1920;
-  const scaleY = window.innerHeight / 1080;
+  // Convert world coordinates to screen coordinates using camera
+  const screenPos = worldToScreen(midPoint.x, midPoint.y, camera, canvas);
+  const screenSize = worldToScreenSize(labelWidth, labelHeight, camera);
   
   const labelStyle = {
     position: 'absolute',
-    left: `${midPoint.x * scaleX}px`,
-    top: `${midPoint.y * scaleY}px`,
-    width: `${labelWidth * scaleX}px`,
-    height: `${labelHeight * scaleY}px`,
+    left: `${screenPos.left}px`,
+    top: `${screenPos.top}px`,
+    width: `${screenSize.width}px`,
+    height: `${screenSize.height}px`,
     transform: `translate(-50%, -50%) rotate(${midAngleRad}rad)`,
+    // Removed scale() since coordinate transformation already handles zoom
+    transformOrigin: 'center center',
     zIndex: 5,
     display: 'flex',
     alignItems: 'center',

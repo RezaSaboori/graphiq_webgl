@@ -23,9 +23,9 @@ export const useWebGLRenderer = (canvasRef, initialCards = [], initialArrows = [
   }, [canvasRef, initialCards, initialArrows]);
 
   // Update scene data
-  const updateScene = useCallback((cards, arrows) => {
+  const updateScene = useCallback((cards, arrows, camera) => {
     if (rendererRef.current) {
-      rendererRef.current.updateScene(cards, arrows);
+      rendererRef.current.updateScene(cards, arrows, camera);
     }
   }, []);
 
