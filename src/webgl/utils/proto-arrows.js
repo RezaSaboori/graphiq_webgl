@@ -58,6 +58,23 @@ export function getBoxToBoxCurve(startBox, endBox) {
   return getCurve(startPoint, endPoint, { flip });
 }
 
+export function interpolateCubicBezier({ start, control1, control2, end }, t) {
+  const t_inv = 1.0 - t;
+  const t_inv_sq = t_inv * t_inv;
+  const t_sq = t * t;
+  
+  return {
+    x: (t_inv_sq * t_inv * start.x) +
+       (3.0 * t_inv_sq * t * control1.x) +
+       (3.0 * t_inv * t_sq * control2.x) +
+       (t_sq * t * end.x),
+    y: (t_inv_sq * t_inv * start.y) +
+       (3.0 * t_inv_sq * t * control1.y) +
+       (3.0 * t_inv * t_sq * control2.y) +
+       (t_sq * t * end.y)
+  };
+}
+
 export function interpolateCubicBezierAngle({ start, control1, control2, end }, t) {
   const tX = 3 * Math.pow(1 - t, 2) * (control1.x - start.x) +
               6 * (1 - t) * t * (control2.x - control1.x) +

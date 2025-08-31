@@ -1,12 +1,20 @@
 import React from 'react';
+import { getBoxToBoxCurve, interpolateCubicBezier, interpolateCubicBezierAngle } from '../../webgl/utils/proto-arrows';
 import './style.css';
 
 const ArrowLabel = ({ arrow, fromCard, toCard }) => {
-  const { label } = arrow;
+  const { label, labelWidth, labelHeight } = arrow;
   
-  // Calculate position for the label (midpoint of the arrow)
-  const midX = (fromCard.x + toCard.x) / 2;
-  const midY = (fromCard.y + toCard.y) / 2;
+  // Use the same curve calculation as the WebGL renderer
+  const startBox = { x: fromCard.x, y: fromCard.y, w: fromCard.width, h: fromCard.height };
+  const endBox = { x: toCard.x, y: toCard.y, w: toCard.width, h: toCard.height };
+  const curve = getBoxToBoxCurve(startBox, endBox);
+  
+  // Calculate the exact midpoint position on the Bézier curve (t = 0.5)
+  const midPoint = interpolateCubicBezier(curve, 0.5);
+  
+  // Calculate the rotation angle at the midpoint to match the WebGL background
+  const midAngleRad = interpolateCubicBezierAngle(curve, 0.5) * (Math.PI / 180);
   
   // Convert world coordinates to CSS coordinates
   const scaleX = window.innerWidth / 1920;
@@ -14,10 +22,15 @@ const ArrowLabel = ({ arrow, fromCard, toCard }) => {
   
   const labelStyle = {
     position: 'absolute',
-    left: `${midX * scaleX}px`,
-    top: `${midY * scaleY}px`,
-    transform: 'translate(-50%, -50%)',
+    left: `${midPoint.x * scaleX}px`,
+    top: `${midPoint.y * scaleY}px`,
+    width: `${labelWidth * scaleX}px`,
+    height: `${labelHeight * scaleY}px`,
+    transform: `translate(-50%, -50%) rotate(${midAngleRad}rad)`,
     zIndex: 5,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   };
 
   return (

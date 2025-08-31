@@ -1,6 +1,6 @@
 import { createShader, createProgram } from './utils/gl-helpers';
 import { mat4 } from './utils/matrix';
-import { getBoxToBoxCurve, interpolateCubicBezierAngle } from './utils/proto-arrows';
+import { getBoxToBoxCurve, interpolateCubicBezierAngle, interpolateCubicBezier } from './utils/proto-arrows';
 
 export class WebGLRenderer {
   constructor(canvas) {
@@ -145,6 +145,39 @@ void main() {
       throw new Error('Failed to create arrowhead shader program');
     }
 
+    // Arrow label shaders
+    const arrowLabelVertexShader = createShader(this.gl, this.gl.VERTEX_SHADER, `#version 300 es
+in vec2 a_position;
+in vec2 a_translation;
+in float a_rotation;
+in vec2 a_scale;
+in vec4 a_color;
+uniform mat4 u_projectionMatrix;
+out vec4 v_color;
+
+void main() {
+    float c = cos(a_rotation);
+    float s = sin(a_rotation);
+    
+    mat2 scaleMat = mat2(a_scale.x, 0.0, 0.0, a_scale.y);
+    mat2 rotationMat = mat2(c, s, -s, c);
+    
+    vec2 centered_pos = a_position - 0.5;
+    vec2 final_pos = rotationMat * scaleMat * centered_pos + a_translation;
+    
+    gl_Position = u_projectionMatrix * vec4(final_pos, 0.0, 1.0);
+    v_color = a_color;
+}`);
+
+    if (!arrowLabelVertexShader) {
+      throw new Error('Failed to create arrow label vertex shader');
+    }
+
+    this.programs.arrowLabels = createProgram(this.gl, arrowLabelVertexShader, cardFragmentShader);
+    if (!this.programs.arrowLabels) {
+      throw new Error('Failed to create arrow label shader program');
+    }
+
     // Get attribute and uniform locations
     this.setupLocations();
   }
@@ -183,6 +216,18 @@ void main() {
     this.uniformLocs.arrowheads = {
       projection: this.gl.getUniformLocation(this.programs.arrowheads, 'u_projectionMatrix')
     };
+
+    // Arrow label locations
+    this.attribLocs.arrowLabels = {
+      position: this.gl.getAttribLocation(this.programs.arrowLabels, 'a_position'),
+      translation: this.gl.getAttribLocation(this.programs.arrowLabels, 'a_translation'),
+      rotation: this.gl.getAttribLocation(this.programs.arrowLabels, 'a_rotation'),
+      scale: this.gl.getAttribLocation(this.programs.arrowLabels, 'a_scale'),
+      color: this.gl.getAttribLocation(this.programs.arrowLabels, 'a_color')
+    };
+    this.uniformLocs.arrowLabels = {
+      projection: this.gl.getUniformLocation(this.programs.arrowLabels, 'u_projectionMatrix')
+    };
   }
 
   setupBuffers() {
@@ -214,6 +259,7 @@ void main() {
     // Instance buffers
     this.buffers.arrowInstances = this.gl.createBuffer();
     this.buffers.arrowHeadInstances = this.gl.createBuffer();
+    this.buffers.arrowLabelInstances = this.gl.createBuffer();
   }
 
   setupVAOs() {
@@ -281,6 +327,39 @@ void main() {
     
     this.vaos.set('arrowheads', arrowheadVao);
 
+    // Arrow label VAO
+    const arrowLabelVao = this.gl.createVertexArray();
+    this.gl.bindVertexArray(arrowLabelVao);
+
+    // 1. Point to the shared quad vertices
+    this.gl.enableVertexAttribArray(this.attribLocs.arrowLabels.position);
+    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffers.quad);
+    this.gl.vertexAttribPointer(this.attribLocs.arrowLabels.position, 2, this.gl.FLOAT, false, 0, 0);
+
+    // 2. Point to the per-instance data buffer
+    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffers.arrowLabelInstances);
+
+    // 3. Define the memory layout of the instance data
+    const stride = (2 + 1 + 2 + 4) * 4; // (vec2 + float + vec2 + vec4) * sizeof(float)
+
+    this.gl.enableVertexAttribArray(this.attribLocs.arrowLabels.translation);
+    this.gl.vertexAttribPointer(this.attribLocs.arrowLabels.translation, 2, this.gl.FLOAT, false, stride, 0);
+    this.gl.vertexAttribDivisor(this.attribLocs.arrowLabels.translation, 1);
+
+    this.gl.enableVertexAttribArray(this.attribLocs.arrowLabels.rotation);
+    this.gl.vertexAttribPointer(this.attribLocs.arrowLabels.rotation, 1, this.gl.FLOAT, false, stride, 8);
+    this.gl.vertexAttribDivisor(this.attribLocs.arrowLabels.rotation, 1);
+
+    this.gl.enableVertexAttribArray(this.attribLocs.arrowLabels.scale);
+    this.gl.vertexAttribPointer(this.attribLocs.arrowLabels.scale, 2, this.gl.FLOAT, false, stride, 12);
+    this.gl.vertexAttribDivisor(this.attribLocs.arrowLabels.scale, 1);
+
+    this.gl.enableVertexAttribArray(this.attribLocs.arrowLabels.color);
+    this.gl.vertexAttribPointer(this.attribLocs.arrowLabels.color, 4, this.gl.FLOAT, false, stride, 20);
+    this.gl.vertexAttribDivisor(this.attribLocs.arrowLabels.color, 1);
+
+    this.vaos.set('arrowlabels', arrowLabelVao);
+
     this.gl.bindVertexArray(null);
   }
 
@@ -331,6 +410,7 @@ void main() {
 
     const arrowInstanceData = [];
     const arrowheadInstanceData = [];
+    const arrowLabelInstanceData = [];
     
     this.arrows.forEach(arrow => {
       const fromCard = this.cards.find(c => c.id === arrow.from);
@@ -355,6 +435,17 @@ void main() {
         endAngleRad,
         ...arrow.color
       );
+
+      // --- New Label Logic ---
+      const midPoint = interpolateCubicBezier(curve, 0.5);
+      const midAngleRad = interpolateCubicBezierAngle(curve, 0.5) * (Math.PI / 180);
+      
+      arrowLabelInstanceData.push(
+        midPoint.x, midPoint.y,
+        midAngleRad,
+        arrow.labelWidth, arrow.labelHeight,
+        ...arrow.labelColor
+      );
     });
 
     // Draw arrow curves
@@ -372,6 +463,16 @@ void main() {
     this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffers.arrowHeadInstances);
     this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(arrowheadInstanceData), this.gl.DYNAMIC_DRAW);
     this.gl.drawArraysInstanced(this.gl.LINE_STRIP, 0, 3, this.arrows.length);
+
+    // --- Draw Arrow Label Backgrounds ---
+    this.gl.useProgram(this.programs.arrowLabels);
+    this.gl.uniformMatrix4fv(this.uniformLocs.arrowLabels.projection, false, projectionMatrix);
+    this.gl.bindVertexArray(this.vaos.get('arrowlabels'));
+    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffers.arrowLabelInstances);
+    this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(arrowLabelInstanceData), this.gl.DYNAMIC_DRAW);
+
+    // Draw 6 vertices (for a quad) for each of the arrow instances
+    this.gl.drawArraysInstanced(this.gl.TRIANGLES, 0, 6, this.arrows.length);
 
     this.gl.bindVertexArray(null);
   }

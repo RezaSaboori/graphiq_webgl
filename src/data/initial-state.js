@@ -67,27 +67,39 @@ export const initialArrows = [
     from: 1, 
     to: 2, 
     color: [0.9, 0.9, 0.9, 1.0], 
-    label: "Data Flow" 
+    label: "Data Flow",
+    labelWidth: 80, 
+    labelHeight: 25, 
+    labelColor: [0.15, 0.15, 0.15, 0.7] 
   },
   { 
     id: 2, 
     from: 2, 
     to: 3, 
     color: [0.9, 0.9, 0.9, 1.0], 
-    label: "Process Result" 
+    label: "Process Result",
+    labelWidth: 100, 
+    labelHeight: 25, 
+    labelColor: [0.15, 0.15, 0.15, 0.7] 
   },
   { 
     id: 3, 
     from: 3, 
     to: 4, 
     color: [0.9, 0.9, 0.9, 1.0], 
-    label: "Store Output" 
+    label: "Store Output",
+    labelWidth: 90, 
+    labelHeight: 25, 
+    labelColor: [0.15, 0.15, 0.15, 0.7] 
   },
   { 
     id: 4, 
     from: 1, 
     to: 3, 
     color: [0.7, 0.7, 0.9, 1.0], 
-    label: "Direct Output" 
+    label: "Direct Output",
+    labelWidth: 95, 
+    labelHeight: 25, 
+    labelColor: [0.15, 0.15, 0.15, 0.7] 
   },
 ];
