@@ -1,13 +1,15 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { useWebGLRenderer } from '../../hooks/useWebGLRenderer';
 import { initialCards, initialArrows } from '../../data/initial-state';
-import { worldToScreen, screenToWorld, worldToScreenSize, calculateOptimalCamera } from '../../webgl/utils/coordinate-utils';
+import { worldToScreen, screenToWorld, worldToScreenSize, calculateOptimalCamera, throttle, debounce } from '../../webgl/utils/coordinate-utils';
 import Card from '../Card/Card';
 import ArrowLabel from '../ArrowLabel/ArrowLabel';
+import PerformanceMonitor from '../PerformanceMonitor/PerformanceMonitor';
 import './style.css';
 
 const Canvas = () => {
   const canvasRef = useRef(null);
+  const containerRef = useRef(null);
   const [cards, setCards] = useState(initialCards);
   const [arrows, setArrows] = useState(initialArrows);
   const [draggedCard, setDraggedCard] = useState(null);
@@ -27,6 +29,34 @@ const Canvas = () => {
   // Use custom hook for WebGL renderer
   const { updateScene, isInitialized } = useWebGLRenderer(canvasRef, initialCards, initialArrows);
 
+  // Handle canvas sizing with device pixel ratio
+  const resizeCanvas = useCallback(() => {
+    if (!canvasRef.current || !containerRef.current) return;
+    
+    const container = containerRef.current;
+    const canvas = canvasRef.current;
+    
+    // Get display size
+    const displayWidth = container.clientWidth;
+    const displayHeight = container.clientHeight;
+    
+    // Get device pixel ratio
+    const devicePixelRatio = window.devicePixelRatio || 1;
+    
+    // Set canvas size to device pixels for maximum fidelity
+    canvas.width = displayWidth * devicePixelRatio;
+    canvas.height = displayHeight * devicePixelRatio;
+    
+    // Set CSS size to display size
+    canvas.style.width = `${displayWidth}px`;
+    canvas.style.height = `${displayHeight}px`;
+    
+    // Update WebGL viewport
+    if (isInitialized) {
+      updateScene(cards, arrows, camera);
+    }
+  }, [cards, arrows, camera, isInitialized, updateScene]);
+
   // Update renderer when cards, arrows, or camera changes
   useEffect(() => {
     if (isInitialized) {
@@ -42,22 +72,50 @@ const Canvas = () => {
     }
   }, []); // Only run once on mount
 
-  // Handle window resize
+  // Handle window resize with ResizeObserver for better performance
   useEffect(() => {
-    const handleResize = () => {
-      if (canvasRef.current) {
-        // Recalculate optimal camera position after resize
-        const optimalCamera = calculateOptimalCamera(cards, arrows, canvasRef.current);
-        setCamera(optimalCamera);
+    if (!containerRef.current) return;
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.target === containerRef.current) {
+          resizeCanvas();
+          // Recalculate optimal camera position after resize
+          if (canvasRef.current && cards.length > 0) {
+            const optimalCamera = calculateOptimalCamera(cards, arrows, canvasRef.current);
+            setCamera(optimalCamera);
+          }
+        }
       }
+    });
+
+    resizeObserver.observe(containerRef.current);
+
+    // Also listen for device pixel ratio changes
+    const handlePixelRatioChange = () => {
+      resizeCanvas();
     };
 
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [cards, arrows]);
+    // Use matchMedia to detect pixel ratio changes
+    const mediaQuery = window.matchMedia('(resolution: 1dppx)');
+    mediaQuery.addEventListener('change', handlePixelRatioChange);
+
+    return () => {
+      resizeObserver.disconnect();
+      mediaQuery.removeEventListener('change', handlePixelRatioChange);
+    };
+  }, [cards, arrows, resizeCanvas]);
+
+  // Initial resize
+  useEffect(() => {
+    resizeCanvas();
+  }, [resizeCanvas]);
 
   // Handle mouse events for dragging cards
   const handleMouseDown = useCallback((event) => {
+    // Early return if canvas is not available
+    if (!canvasRef.current) return;
+    
     const rect = canvasRef.current.getBoundingClientRect();
     const screenX = event.clientX - rect.left;
     const screenY = event.clientY - rect.top;
@@ -82,13 +140,29 @@ const Canvas = () => {
     }
   }, [cards, camera]);
 
+  // Throttled panning handler for better performance during panning
+  const throttledPanning = useCallback(
+    throttle((deltaX, deltaY) => {
+      setCamera(prevCamera => ({
+        ...prevCamera,
+        x: prevCamera.x + deltaX,
+        y: prevCamera.y + deltaY
+      }));
+    }, 16), // ~60fps for panning
+    []
+  );
+
+  // Mouse move handler for smooth interactions
   const handleMouseMove = useCallback((event) => {
+    // Early return if canvas is not available
+    if (!canvasRef.current) return;
+    
     const rect = canvasRef.current.getBoundingClientRect();
     const screenX = event.clientX - rect.left;
     const screenY = event.clientY - rect.top;
 
     if (draggedCard) {
-      // Handle card dragging
+      // Handle card dragging - immediate updates for responsive dragging
       const worldPos = screenToWorld(screenX, screenY, camera, canvasRef.current);
       
       setCards(prevCards => 
@@ -99,19 +173,16 @@ const Canvas = () => {
         )
       );
     } else if (isPanning) {
-      // Handle panning
+      // Handle panning - use throttled updates for smooth camera movement
       const deltaX = (panStart.x - screenX) / camera.zoom;
       const deltaY = (panStart.y - screenY) / camera.zoom;
       
-      setCamera(prevCamera => ({
-        ...prevCamera,
-        x: prevCamera.x + deltaX,
-        y: prevCamera.y + deltaY
-      }));
+      // Use throttled panning for better performance
+      throttledPanning(deltaX, deltaY);
       
       setPanStart({ x: screenX, y: screenY });
     }
-  }, [draggedCard, dragOffset, isPanning, panStart, camera]);
+  }, [draggedCard, dragOffset, isPanning, panStart, camera, throttledPanning]);
 
   const handleMouseUp = useCallback(() => {
     setDraggedCard(null);
@@ -121,6 +192,9 @@ const Canvas = () => {
   // Handle wheel events for zooming
   const handleWheel = useCallback((event) => {
     event.preventDefault();
+    
+    // Early return if canvas is not available
+    if (!canvasRef.current) return;
     
     const rect = canvasRef.current.getBoundingClientRect();
     const mouseX = event.clientX - rect.left;
@@ -218,19 +292,21 @@ const Canvas = () => {
   }, [handleMouseDown, handleMouseMove, handleMouseUp, handleWheel]);
 
   return (
-    <div className="canvas-container">
+    <div className="canvas-container" ref={containerRef}>
       <canvas 
         ref={canvasRef} 
         className="webgl-canvas"
-        width={1920}
-        height={1080}
       />
+      
+      {/* Performance Monitor */}
+      <PerformanceMonitor enabled={true} />
       
       {/* Camera info display */}
       <div className="camera-info">
         <div>Camera: ({camera.x.toFixed(1)}, {camera.y.toFixed(1)})</div>
         <div>Zoom: {camera.zoom.toFixed(2)}x</div>
         <div>Canvas: {canvasRef.current?.clientWidth || 0} × {canvasRef.current?.clientHeight || 0}</div>
+        <div>Device Pixel Ratio: {window.devicePixelRatio || 1}</div>
         <div>Controls: Mouse drag to pan, Wheel to zoom, Arrow keys to move, F to fit view</div>
       </div>
       

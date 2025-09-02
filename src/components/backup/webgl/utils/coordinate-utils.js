@@ -3,6 +3,27 @@
  * Used by both WebGL rendering and React HTML overlays
  */
 
+// Throttling utility for performance optimization
+let throttleTimer;
+export function throttle(func, delay) {
+  return function(...args) {
+    if (throttleTimer) return;
+    throttleTimer = setTimeout(() => {
+      func.apply(this, args);
+      throttleTimer = null;
+    }, delay);
+  };
+}
+
+// Debouncing utility for performance optimization
+let debounceTimer;
+export function debounce(func, delay) {
+  return function(...args) {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => func.apply(this, args), delay);
+  };
+}
+
 /**
  * Convert world coordinates to screen coordinates
  * @param {number} worldX - X coordinate in world space
@@ -60,6 +81,24 @@ export function getVisibleWorldBounds(camera, canvas) {
   const bottom = camera.y + (canvas.clientHeight / camera.zoom);
   
   return { left, right, top, bottom };
+}
+
+/**
+ * Check if a world object is visible in the current viewport
+ * @param {Object} object - Object with x, y, width, height properties
+ * @param {Object} camera - Camera object with x, y, zoom properties
+ * @param {Object} canvas - Canvas element
+ * @returns {boolean} True if object is visible
+ */
+export function isObjectVisible(object, camera, canvas) {
+  const bounds = getVisibleWorldBounds(camera, canvas);
+  
+  return !(
+    object.x + object.width < bounds.left ||
+    object.x > bounds.right ||
+    object.y + object.height < bounds.top ||
+    object.y > bounds.bottom
+  );
 }
 
 /**

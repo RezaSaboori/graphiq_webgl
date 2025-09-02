@@ -1,9 +1,11 @@
 import { useRef, useEffect, useCallback } from 'react';
 import { WebGLRenderer } from '../webgl/Renderer';
+import { usePerformance } from './usePerformance';
 
 export const useWebGLRenderer = (canvasRef, initialCards = [], initialArrows = []) => {
   const rendererRef = useRef(null);
   const animationFrameRef = useRef(null);
+  const { measureFrame } = usePerformance(true);
 
   // Initialize renderer
   const initRenderer = useCallback(() => {
@@ -29,16 +31,17 @@ export const useWebGLRenderer = (canvasRef, initialCards = [], initialArrows = [
     }
   }, []);
 
-  // Start animation loop
+  // Start animation loop with performance monitoring
   const startAnimation = useCallback(() => {
     const animate = () => {
       if (rendererRef.current) {
         rendererRef.current.render();
+        measureFrame(); // Measure performance for this frame
       }
       animationFrameRef.current = requestAnimationFrame(animate);
     };
     animate();
-  }, []);
+  }, [measureFrame]);
 
   // Stop animation loop
   const stopAnimation = useCallback(() => {

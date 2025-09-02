@@ -20,6 +20,9 @@ export class WebGLRenderer {
     // Scene data
     this.cards = [];
     this.arrows = [];
+    
+    // Projection matrix for camera transformations
+    this.projectionMatrix = null;
   }
 
   init() {
@@ -32,8 +35,9 @@ export class WebGLRenderer {
     this.setupBuffers();
     this.setupVAOs();
     
-    // Set initial viewport
+    // Set initial viewport and projection matrix
     this.resizeCanvas();
+    this.updateProjectionMatrix();
   }
 
   setupShaders() {
@@ -492,10 +496,38 @@ void main() {
   resizeCanvas() {
     const displayWidth = this.canvas.clientWidth;
     const displayHeight = this.canvas.clientHeight;
+    const devicePixelRatio = window.devicePixelRatio || 1;
     
-    if (this.canvas.width !== displayWidth || this.canvas.height !== displayHeight) {
-      this.canvas.width = displayWidth;
-      this.canvas.height = displayHeight;
+    // Set canvas size to device pixels for maximum fidelity
+    const pixelWidth = displayWidth * devicePixelRatio;
+    const pixelHeight = displayHeight * devicePixelRatio;
+    
+    if (this.canvas.width !== pixelWidth || this.canvas.height !== pixelHeight) {
+      this.canvas.width = pixelWidth;
+      this.canvas.height = pixelHeight;
+      
+      // Update WebGL viewport to match the new canvas size
+      this.gl.viewport(0, 0, pixelWidth, pixelHeight);
+      
+      // Update projection matrix for new aspect ratio
+      this.updateProjectionMatrix();
     }
+  }
+
+  updateProjectionMatrix() {
+    if (!this.gl) return;
+    
+    const aspect = this.canvas.clientWidth / this.canvas.clientHeight;
+    const fov = 45 * Math.PI / 180; // 45 degrees in radians
+    const near = 0.1;
+    const far = 1000.0;
+    
+    // Create orthographic projection matrix for 2D rendering
+    const left = -this.canvas.clientWidth / 2;
+    const right = this.canvas.clientWidth / 2;
+    const top = this.canvas.clientHeight / 2;
+    const bottom = -this.canvas.clientHeight / 2;
+    
+    this.projectionMatrix = mat4.ortho(left, right, bottom, top, near, far);
   }
 }

@@ -1,10 +1,18 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { getBoxToBoxCurve, interpolateCubicBezier, interpolateCubicBezierAngle } from '../../webgl/utils/proto-arrows';
-import { worldToScreen, worldToScreenSize } from '../../webgl/utils/coordinate-utils';
+import { worldToScreen, worldToScreenSize, isObjectVisible } from '../../webgl/utils/coordinate-utils';
 import './style.css';
 
-const ArrowLabel = ({ arrow, fromCard, toCard, camera, canvas }) => {
+const ArrowLabel = memo(({ arrow, fromCard, toCard, camera, canvas }) => {
   const { label, labelWidth, labelHeight } = arrow;
+  
+  // Early return if canvas is not available
+  if (!canvas) return null;
+  
+  // Visibility culling - only render if both cards are visible
+  if (!isObjectVisible(fromCard, camera, canvas) && !isObjectVisible(toCard, camera, canvas)) {
+    return null;
+  }
   
   // Use the same curve calculation as the WebGL renderer
   const startBox = { x: fromCard.x, y: fromCard.y, w: fromCard.width, h: fromCard.height };
@@ -41,6 +49,8 @@ const ArrowLabel = ({ arrow, fromCard, toCard, camera, canvas }) => {
       <span className="label-text">{label}</span>
     </div>
   );
-};
+});
+
+ArrowLabel.displayName = 'ArrowLabel';
 
 export default ArrowLabel;

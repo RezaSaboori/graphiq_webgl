@@ -1,13 +1,23 @@
-import React from 'react';
-import { worldToScreen, worldToScreenSize } from '../../webgl/utils/coordinate-utils';
+import React, { memo } from 'react';
+import { worldToScreen, worldToScreenSize, isObjectVisible } from '../../webgl/utils/coordinate-utils';
 import './style.css';
 
-const Card = ({ card, camera, canvas, isDragging }) => {
+const Card = memo(({ card, camera, canvas, isDragging }) => {
   const { x, y, width, height, text, properties } = card;
+  
+  // Early return if canvas is not available
+  if (!canvas) return null;
+  
+  // Visibility culling - only render if card is visible
+  if (!isObjectVisible(card, camera, canvas)) {
+    return null;
+  }
   
   // Convert world coordinates to screen coordinates using camera
   const screenPos = worldToScreen(x, y, camera, canvas);
   const screenSize = worldToScreenSize(width, height, camera);
+  
+
   
   const cardStyle = {
     position: 'absolute',
@@ -16,6 +26,9 @@ const Card = ({ card, camera, canvas, isDragging }) => {
     width: `${screenSize.width}px`,
     height: `${screenSize.height}px`,
     zIndex: isDragging ? 1000000 : 10,
+    // Ensure height is properly applied
+    minHeight: `${screenSize.height}px`,
+    maxHeight: `${screenSize.height}px`,
     // Removed transform: scale() since coordinate transformation already handles zoom
   };
 
@@ -41,6 +54,8 @@ const Card = ({ card, camera, canvas, isDragging }) => {
       </div>
     </div>
   );
-};
+});
+
+Card.displayName = 'Card';
 
 export default Card;
