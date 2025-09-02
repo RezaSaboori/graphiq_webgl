@@ -769,8 +769,6 @@ Based on research findings, this architecture can efficiently handle:
 This comprehensive system provides a robust foundation for visualizing complex medical data graphs with thousands of interconnected nodes, maintaining smooth performance while supporting rich interactions and dynamic content expansion.
 <span style="display:none">[^14][^15][^16][^17][^18][^19][^20][^21][^22][^23][^24][^25]</span>
 
-<div style="text-align: center">⁂</div>
-
 [^1]: https://pmc.ncbi.nlm.nih.gov/articles/PMC12061801/
 
 [^2]: https://cambridge-intelligence.com/visualizing-graphs-webgl/
