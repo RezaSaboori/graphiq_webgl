@@ -59,6 +59,25 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
 
     const renderer = new NodeGraphRenderer(gl, canvas, camera);
     rendererRef.current = renderer;
+
+    // --- DRAW LOOP SYSTEM ---
+    let dirty = false;
+    let animationFrameId = null;
+    
+    function markDirty() {
+      dirty = true;
+    }
+    
+    function drawLoop() {
+      if (dirty) {
+        renderer.render();
+        dirty = false;
+      }
+      animationFrameId = requestAnimationFrame(drawLoop);
+    }
+    
+    // Start the draw loop
+    drawLoop();
     // Initial fit to content if available
     const nodesArr = [...graph.nodes.values()];
     if (nodesArr.length > 0) {
@@ -74,11 +93,20 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
     // Background color from data if present
     const bgHex = source?.style?.['background-color'] || source?.style?.backgroundColor;
     const bg = bgHex ? [...hexToRgbNorm(bgHex), 1] : undefined;
-    if (bg) rendererRef.current.render(bg); else rendererRef.current.render();
+    if (bg) {
+      rendererRef.current.render(bg);
+    } else {
+      markDirty(); // Use dirty flag for initial render
+    }
 
     // FSM + manager
     const manager = new InteractionManager(canvas, camera, spatial);
     managerRef.current = manager;
+
+    // Listen for dirty events from FSM
+    manager.on('dirty', () => {
+      markDirty();
+    });
 
     // --- INTERACTION SIDE EFFECTS ---
     let lastPanPos = null;      // For panning deltas
@@ -96,7 +124,7 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
         const dx = pos.x - lastPanPos.x;
         const dy = pos.y - lastPanPos.y;
         camera.panBy(-dx, -dy);
-        renderer.render(); // update display
+        markDirty(); // Use dirty flag instead of direct render
         lastPanPos = pos;
       }
     });
@@ -117,7 +145,7 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
       if (node && pos) {
         node.position.x = pos.x;
         node.position.y = pos.y;
-        renderer.render();
+        markDirty(); // Use dirty flag instead of direct render
       }
     });
     manager.on('dragEnd', () => {
@@ -134,7 +162,7 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
       const mouseY = e.clientY - rect.top;
       const zoomFactor = e.deltaY < 0 ? 1.08 : 1 / 1.08;
       camera.zoomTo(camera.zoom * zoomFactor, mouseX, mouseY);
-      renderer.render();
+      markDirty(); // Use dirty flag instead of direct render
     };
     canvas.addEventListener('wheel', wheelHandler, { passive: false });
 
@@ -146,7 +174,7 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
       canvas.width = nextW;
       canvas.height = nextH;
       renderer.setViewportSize(canvas.width, canvas.height);
-      renderer.render();
+      markDirty(); // Use dirty flag for resize
     };
     handleResize();
     const ro = new ResizeObserver(handleResize);
@@ -155,6 +183,9 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
     return () => {
       ro.disconnect();
       canvas.removeEventListener('wheel', wheelHandler);
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
       managerRef.current?.destroy?.();
       managerRef.current = null;
       rendererRef.current?.dispose?.();

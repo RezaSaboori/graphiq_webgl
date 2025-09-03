@@ -56,13 +56,19 @@ function createInteractionMachine(context = {}) {
       updateLastEvent: assign((ctx, evt) => ({ ...ctx, lastEvent: evt, eventBus: ctx.eventBus })),
       notifyDragStart: ctx => { 
         console.log('FSM: notifyDragStart', ctx);
-        if (ctx?.eventBus?.emit) ctx.eventBus.emit('dragStart', ctx); 
+        if (ctx?.eventBus?.emit) {
+          ctx.eventBus.emit('dragStart', ctx);
+          ctx.eventBus.emit('dirty'); // Mark scene as dirty
+        }
       },
       dragNode: (ctx, evt) => {
         console.log('FSM: dragNode', { ctx, evt });
         const currentEvent = evt || ctx.lastEvent;
         if (!currentEvent || !currentEvent.world) return;
-        if (ctx?.eventBus?.emit) ctx.eventBus.emit('drag', { node: ctx.node, pos: currentEvent.world });
+        if (ctx?.eventBus?.emit) {
+          ctx.eventBus.emit('drag', { node: ctx.node, pos: currentEvent.world });
+          ctx.eventBus.emit('dirty'); // Mark scene as dirty
+        }
       },
       finishDrag: ctx => { 
         console.log('FSM: finishDrag', ctx);
@@ -70,13 +76,19 @@ function createInteractionMachine(context = {}) {
       },
       notifyPanStart: ctx => { 
         console.log('FSM: notifyPanStart', ctx);
-        if (ctx?.eventBus?.emit) ctx.eventBus.emit('panStart', ctx); 
+        if (ctx?.eventBus?.emit) {
+          ctx.eventBus.emit('panStart', ctx);
+          ctx.eventBus.emit('dirty'); // Mark scene as dirty
+        }
       },
       updatePan: (ctx, evt) => {
         console.log('FSM: updatePan', { ctx, evt });
         const currentEvent = evt || ctx.lastEvent;
         if (!currentEvent || !currentEvent.world) return;
-        if (ctx?.eventBus?.emit) ctx.eventBus.emit('pan', { start: ctx.start, pos: currentEvent.world });
+        if (ctx?.eventBus?.emit) {
+          ctx.eventBus.emit('pan', { start: ctx.start, pos: currentEvent.world });
+          ctx.eventBus.emit('dirty'); // Mark scene as dirty
+        }
       },
       finishPan: ctx => { 
         console.log('FSM: finishPan', ctx);
