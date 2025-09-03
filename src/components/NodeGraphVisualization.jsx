@@ -9,6 +9,7 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
   const canvasRef = useRef(null);
   const rendererRef = useRef(null);
   const managerRef = useRef(null);
+  const cameraRef = useRef(null);
 
   const [selectedNodes, setSelectedNodes] = useState(new Set());
   const [draggedNode, setDraggedNode] = useState(null);
@@ -21,6 +22,7 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
 
     // Setup core systems
     const camera = new Camera({ viewportWidth: canvas.width, viewportHeight: canvas.height });
+    cameraRef.current = camera;
     const spatial = new SimpleSpatialIndex();
 
     // Ensure we always operate on a Graph instance
@@ -64,7 +66,9 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
       const right = Math.max(...nodesArr.map(n => (n.position?.x ?? 0) + (n.width ?? 300) / 2));
       const top = Math.min(...nodesArr.map(n => (n.position?.y ?? 0) - (n.height ?? 100) / 2));
       const bottom = Math.max(...nodesArr.map(n => (n.position?.y ?? 0) + (n.height ?? 100) / 2));
+      console.log('Camera fitWorldRect:', { left, top, right, bottom });
       camera.fitWorldRect({ left, top, right, bottom }, 32);
+      console.log('Camera after fit:', { x: camera.x, y: camera.y, zoom: camera.zoom });
     }
     rendererRef.current.updateGraph(graph, { selectedNodes, nodeWidth });
     // Background color from data if present
@@ -76,52 +80,61 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
     const manager = new InteractionManager(canvas, camera, spatial);
     managerRef.current = manager;
 
-    // High-level subscriptions
-    let lastPos = null;
-    
-    manager.on('dragStart', (ctx) => {
-      setDraggedNode(ctx.node?.id ?? null);
-      canvas.style.cursor = 'move';
-    });
-    manager.on('drag', ({ node, pos }) => {
-      if (node) {
-        node.position.x = pos.x;
-        node.position.y = pos.y;
-        rendererRef.current.updateGraph(graph, { selectedNodes, nodeWidth });
-      }
-    });
-    manager.on('dragEnd', () => {
-      setDraggedNode(null);
-      canvas.style.cursor = '';
-    });
-    
+    // --- INTERACTION SIDE EFFECTS ---
+    let lastPanPos = null;      // For panning deltas
+    let lastDraggedNode = null; // For node drag
+
+    // PAN Events
     manager.on('panStart', ({ start }) => {
-      lastPos = start;
+      console.log('panStart event received', { start });
+      lastPanPos = start;
       canvas.style.cursor = 'grabbing';
     });
     manager.on('pan', ({ pos }) => {
-      if (lastPos) {
-        const dx = pos.x - lastPos.x;
-        const dy = pos.y - lastPos.y;
+      console.log('pan event received', { pos, lastPanPos });
+      if (lastPanPos) {
+        const dx = pos.x - lastPanPos.x;
+        const dy = pos.y - lastPanPos.y;
         camera.panBy(-dx, -dy);
-        rendererRef.current.render();
-        lastPos = pos;
+        renderer.render(); // update display
+        lastPanPos = pos;
       }
     });
     manager.on('panEnd', () => {
-      lastPos = null;
+      console.log('panEnd event received');
+      lastPanPos = null;
       canvas.style.cursor = '';
     });
 
-    // Zoom handler (mouse wheel)
+    // NODE DRAG Events
+    manager.on('dragStart', ({ node }) => {
+      console.log('dragStart event received', { node });
+      lastDraggedNode = node;
+      canvas.style.cursor = 'move';
+    });
+    manager.on('drag', ({ node, pos }) => {
+      console.log('drag event received', { node, pos });
+      if (node && pos) {
+        node.position.x = pos.x;
+        node.position.y = pos.y;
+        renderer.render();
+      }
+    });
+    manager.on('dragEnd', () => {
+      console.log('dragEnd event received');
+      lastDraggedNode = null;
+      canvas.style.cursor = '';
+    });
+
+    // ZOOM (Wheel) Event
     const wheelHandler = (e) => {
       e.preventDefault();
       const rect = canvas.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
       const mouseY = e.clientY - rect.top;
-      const zoomFactor = e.deltaY < 0 ? 1.08 : 1/1.08;
+      const zoomFactor = e.deltaY < 0 ? 1.08 : 1 / 1.08;
       camera.zoomTo(camera.zoom * zoomFactor, mouseX, mouseY);
-      rendererRef.current.render();
+      renderer.render();
     };
     canvas.addEventListener('wheel', wheelHandler, { passive: false });
 
@@ -146,6 +159,7 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
       managerRef.current = null;
       rendererRef.current?.dispose?.();
       rendererRef.current = null;
+      cameraRef.current = null;
     };
   }, [graphData, nodeWidth]);
 

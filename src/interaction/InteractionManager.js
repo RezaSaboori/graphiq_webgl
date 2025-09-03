@@ -27,21 +27,22 @@ function createInteractionMachine(context = {}) {
       draggingNode: {
         entry: 'notifyDragStart',
         on: {
-          POINTER_MOVE: { actions: ['dragNode', 'notifyDrag'] },
-          POINTER_UP: { target: 'idle', actions: ['finishDrag', 'notifyDragEnd', 'clearTemp'] }
+          POINTER_MOVE: { actions: ['updateLastEvent', 'dragNode'] },
+          POINTER_UP: { target: 'idle', actions: ['finishDrag', 'clearTemp'] }
         }
       },
       panning: {
         entry: 'notifyPanStart',
         on: {
-          POINTER_MOVE: { actions: ['updatePan', 'notifyPan'] },
-          POINTER_UP: { target: 'idle', actions: ['finishPan', 'notifyPanEnd', 'clearTemp'] },
+          POINTER_MOVE: { actions: ['updateLastEvent', 'updatePan'] },
+          POINTER_UP: { target: 'idle', actions: ['finishPan', 'clearTemp'] },
         },
       }
     }
   }, {
     guards: {
       onNode: (_ctx, evt) => {
+        console.log('FSM guard onNode:', { evt, target: evt?.target, targetType: evt?.target?.type });
         if (!evt || !evt.target) return false;
         return evt.target.type === 'node';
       }
@@ -49,24 +50,38 @@ function createInteractionMachine(context = {}) {
     actions: {
       setStart: assign((ctx, evt) => {
         if (!evt) return { ...ctx, start: null, node: null, eventBus: ctx.eventBus };
-        return { ...ctx, start: evt?.world ?? null, node: evt?.target?.node, eventBus: ctx.eventBus };
+        return { ...ctx, start: evt?.world ?? null, node: evt?.target?.node, eventBus: ctx.eventBus, lastEvent: evt };
       }),
-      clearTemp: assign(ctx => ({ ...ctx, start: undefined, node: undefined, eventBus: ctx.eventBus })),
-      notifyDragStart: ctx => { if (ctx?.eventBus?.emit) ctx.eventBus.emit('dragStart', ctx); },
+      clearTemp: assign(ctx => ({ ...ctx, start: undefined, node: undefined, lastEvent: undefined, eventBus: ctx.eventBus })),
+      updateLastEvent: assign((ctx, evt) => ({ ...ctx, lastEvent: evt, eventBus: ctx.eventBus })),
+      notifyDragStart: ctx => { 
+        console.log('FSM: notifyDragStart', ctx);
+        if (ctx?.eventBus?.emit) ctx.eventBus.emit('dragStart', ctx); 
+      },
       dragNode: (ctx, evt) => {
-        if (!evt || !evt.world) return;
-        if (ctx?.eventBus?.emit) ctx.eventBus.emit('drag', { ...ctx, pos: evt.world });
+        console.log('FSM: dragNode', { ctx, evt });
+        const currentEvent = evt || ctx.lastEvent;
+        if (!currentEvent || !currentEvent.world) return;
+        if (ctx?.eventBus?.emit) ctx.eventBus.emit('drag', { node: ctx.node, pos: currentEvent.world });
       },
-      notifyDrag: ctx => {},
-      finishDrag: ctx => { if (ctx?.eventBus?.emit) ctx.eventBus.emit('dragEnd', ctx); },
-      notifyDragEnd: ctx => {},
-      notifyPanStart: ctx => { if (ctx?.eventBus?.emit) ctx.eventBus.emit('panStart', ctx); },
+      finishDrag: ctx => { 
+        console.log('FSM: finishDrag', ctx);
+        if (ctx?.eventBus?.emit) ctx.eventBus.emit('dragEnd', ctx); 
+      },
+      notifyPanStart: ctx => { 
+        console.log('FSM: notifyPanStart', ctx);
+        if (ctx?.eventBus?.emit) ctx.eventBus.emit('panStart', ctx); 
+      },
       updatePan: (ctx, evt) => {
-        if (!evt || !evt.world) return;
-        if (ctx?.eventBus?.emit) ctx.eventBus.emit('pan', { ...ctx, pos: evt.world });
+        console.log('FSM: updatePan', { ctx, evt });
+        const currentEvent = evt || ctx.lastEvent;
+        if (!currentEvent || !currentEvent.world) return;
+        if (ctx?.eventBus?.emit) ctx.eventBus.emit('pan', { start: ctx.start, pos: currentEvent.world });
       },
-      finishPan: ctx => { if (ctx?.eventBus?.emit) ctx.eventBus.emit('panEnd', ctx); },
-      notifyPanEnd: ctx => {},
+      finishPan: ctx => { 
+        console.log('FSM: finishPan', ctx);
+        if (ctx?.eventBus?.emit) ctx.eventBus.emit('panEnd', ctx); 
+      },
     }
   });
 }
@@ -104,6 +119,7 @@ export class InteractionManager {
     try {
       target = this.spatialIndex?.queryPoint?.(world) || null;
     } catch (_) { target = null; }
+    console.log('POINTER_DOWN', { world, target: target?.type, nodeId: target?.node?.id });
     this.service.send({ type: 'POINTER_DOWN', world, target, originalEvent: e });
   }
   onPointerMove(e) {
@@ -113,6 +129,7 @@ export class InteractionManager {
     try {
       target = this.spatialIndex?.queryPoint?.(world) || null;
     } catch (_) { target = null; }
+    // console.log('POINTER_MOVE', { world, target, offsetX: e.offsetX, offsetY: e.offsetY });
     this.service.send({ type: 'POINTER_MOVE', world, target, originalEvent: e });
   }
   onPointerUp(e) {
