@@ -17,7 +17,7 @@ function App() {
       <header className="app-header" style={{padding: 16, background: "#222", color: "#fff", height: "60px", boxSizing: "border-box"}}>
         <h1>GraphIQ - Medical Data Visualization</h1>
       </header>
-      <main className="app-main" style={{height: "calc(100vh - 60px)", position: "relative", width: "100%"}}>
+      <main className="app-main" style={{height: "calc(100vh - 60px)", position: "relative", width: "100%", overflow: "hidden"}}>
         <NodeGraphVisualization 
           graphData={data}
         />

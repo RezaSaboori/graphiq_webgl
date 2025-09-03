@@ -5,10 +5,14 @@ export class EventBus {
   constructor() { this.listeners = {}; }
   on(type, cb) { (this.listeners[type] ||= []).push(cb); }
   off(type, cb) { this.listeners[type] = (this.listeners[type] || []).filter(fn => fn !== cb); }
-  emit(type, ...args) { (this.listeners[type] || []).forEach(fn => fn(...args)); }
+  emit(type, ...args) { 
+
+    (this.listeners[type] || []).forEach(fn => fn(...args)); 
+  }
 }
 
 function createInteractionMachine(context = {}) {
+  const eventBus = context.eventBus;
   return createMachine({
     id: 'interaction',
     initial: 'idle',
@@ -49,38 +53,42 @@ function createInteractionMachine(context = {}) {
     },
     actions: {
       setStart: assign((ctx, evt) => {
-        if (!evt) return { ...ctx, start: null, node: null, eventBus: ctx.eventBus };
-        return { ...ctx, start: evt?.world ?? null, node: evt?.target?.node, eventBus: ctx.eventBus, lastEvent: evt };
+
+        if (!evt) return { ...ctx, start: null, node: null, eventBus: eventBus };
+        return { ...ctx, start: evt?.world ?? null, node: evt?.target?.node, eventBus: eventBus, lastEvent: evt };
       }),
-      clearTemp: assign(ctx => ({ ...ctx, start: undefined, node: undefined, lastEvent: undefined, eventBus: ctx.eventBus })),
-      updateLastEvent: assign((ctx, evt) => ({ ...ctx, lastEvent: evt, eventBus: ctx.eventBus })),
+      clearTemp: assign(ctx => ({ ...ctx, start: undefined, node: undefined, lastEvent: undefined, eventBus: eventBus })),
+      updateLastEvent: assign((ctx, evt) => {
+
+        return { ...ctx, lastEvent: evt, eventBus: eventBus };
+      }),
       notifyDragStart: ctx => { 
 
-        if (ctx?.eventBus?.emit) ctx.eventBus.emit('dragStart', ctx);
+        if (eventBus?.emit) eventBus.emit('dragStart', ctx);
       },
       dragNode: (ctx, evt) => {
 
         const currentEvent = evt || ctx.lastEvent;
         if (!currentEvent || !currentEvent.world) return;
-        if (ctx?.eventBus?.emit) ctx.eventBus.emit('drag', { node: ctx.node, pos: currentEvent.world });
+        if (eventBus?.emit) eventBus.emit('drag', { node: ctx.node, pos: currentEvent.world });
       },
       finishDrag: ctx => { 
 
-        if (ctx?.eventBus?.emit) ctx.eventBus.emit('dragEnd', ctx); 
+        if (eventBus?.emit) eventBus.emit('dragEnd', ctx); 
       },
       notifyPanStart: ctx => { 
-
-        if (ctx?.eventBus?.emit) ctx.eventBus.emit('panStart', ctx);
+        if (eventBus?.emit) {
+          eventBus.emit('panStart', ctx);
+        }
       },
       updatePan: (ctx, evt) => {
-
         const currentEvent = evt || ctx.lastEvent;
         if (!currentEvent || !currentEvent.world) return;
-        if (ctx?.eventBus?.emit) ctx.eventBus.emit('pan', { start: ctx.start, pos: currentEvent.world });
+        if (eventBus?.emit) eventBus.emit('pan', { start: ctx.start, pos: currentEvent.world });
       },
       finishPan: ctx => { 
 
-        if (ctx?.eventBus?.emit) ctx.eventBus.emit('panEnd', ctx); 
+        if (eventBus?.emit) eventBus.emit('panEnd', ctx); 
       },
     }
   });
@@ -104,6 +112,8 @@ export class InteractionManager {
     canvas.addEventListener('pointerdown', this.onPointerDown);
     canvas.addEventListener('pointermove', this.onPointerMove);
     window.addEventListener('pointerup', this.onPointerUp);
+    
+
   }
   destroy() {
     this.canvas.removeEventListener('pointerdown', this.onPointerDown);
@@ -123,6 +133,7 @@ export class InteractionManager {
       target = this.spatialIndex?.queryPoint?.(world) || null;
     } catch (_) { target = null; }
 
+
     this.service.send({ type: 'POINTER_DOWN', world, target, originalEvent: e });
   }
   onPointerMove(e) {
@@ -135,6 +146,7 @@ export class InteractionManager {
     try {
       target = this.spatialIndex?.queryPoint?.(world) || null;
     } catch (_) { target = null; }
+
 
     this.service.send({ type: 'POINTER_MOVE', world, target, originalEvent: e });
   }

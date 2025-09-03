@@ -104,11 +104,10 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
     });
 
     manager.on('pan', ({ pos, start }) => {
-
       if (start) {
         const dx = pos.x - start.x;
         const dy = pos.y - start.y;
-        sceneModel.panBy(-dx, -dy);
+        sceneModel.panBy(dx, dy);
       }
     });
 
@@ -225,7 +224,18 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
       ref={canvasRef}
       width={1920}
       height={1080}
-      style={{ width: '100%', height: '100%', display: 'block' }}
+      style={{ 
+        width: '100%', 
+        height: '100%', 
+        display: 'block',
+        position: 'absolute',
+        left: 0,
+        top: 0,
+        zIndex: 10,
+        pointerEvents: 'auto',
+        background: '#222',
+        outline: 'none'
+      }}
     />
   );
 }
