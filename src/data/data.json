@@ -1,7 +1,7 @@
 {
     "graph": {
         "style": {
-            "background-color": "#24292e"
+            "background-color": "#1B1B1B"
         },
         "nodes": [
             {
@@ -28,8 +28,8 @@
             {
                 "id": "n1",
                 "position": {
-                    "x": 400,
-                    "y": 90
+                    "x": 350,
+                    "y": 150
                 },
                 "color": "#c9ada7",
                 "caption": "",
@@ -46,8 +46,8 @@
             {
                 "id": "n2",
                 "position": {
-                    "x": 260,
-                    "y": 320
+                    "x": 600,
+                    "y": 300
                 },
                 "color": "#ffe066",
                 "caption": "Needs attention",
@@ -67,8 +67,8 @@
             {
                 "id": "n3",
                 "position": {
-                    "x": 550,
-                    "y": 250
+                    "x": 850,
+                    "y": 450
                 },
                 "color": "#02c39a",
                 "caption": "",
@@ -85,8 +85,8 @@
             {
                 "id": "n4",
                 "position": {
-                    "x": 120,
-                    "y": 410
+                    "x": 1100,
+                    "y": 600
                 },
                 "color": "#f4a259",
                 "caption": "Exclude",
@@ -102,8 +102,8 @@
             {
                 "id": "n5",
                 "position": {
-                    "x": 370,
-                    "y": 470
+                    "x": 1350,
+                    "y": 350
                 },
                 "color": "#e5989b",
                 "caption": "",
@@ -123,8 +123,8 @@
             {
                 "id": "n6",
                 "position": {
-                    "x": 590,
-                    "y": 400
+                    "x": 1600,
+                    "y": 200
                 },
                 "color": "#b4f8c8",
                 "caption": "Family",
