@@ -1,4 +1,4 @@
-// InteractionManager.js
+// src/interaction/InteractionManager.js
 import { createMachine, interpret, assign } from 'xstate';
 
 export class EventBus {
@@ -6,7 +6,6 @@ export class EventBus {
   on(type, cb) { (this.listeners[type] ||= []).push(cb); }
   off(type, cb) { this.listeners[type] = (this.listeners[type] || []).filter(fn => fn !== cb); }
   emit(type, ...args) { 
-
     (this.listeners[type] || []).forEach(fn => fn(...args)); 
   }
 }
@@ -38,15 +37,16 @@ function createInteractionMachine(context = {}) {
       panning: {
         entry: 'notifyPanStart',
         on: {
-          POINTER_MOVE: { actions: ['updateLastEvent', 'updatePan'] },
+          // Re-ordered actions: updatePan must come BEFORE updateLastEvent
+          POINTER_MOVE: { actions: ['updatePan', 'updateLastEvent'] },
           POINTER_UP: { target: 'idle', actions: ['finishPan', 'clearTemp'] },
         },
       }
     }
   }, {
     guards: {
+      // ✅ FIX: Restored the original, robust guard to prevent crashes.
       onNode: (_ctx, evt) => {
-
         if (!evt || !evt.target) return false;
         return evt.target.type === 'node';
       }
@@ -58,20 +58,17 @@ function createInteractionMachine(context = {}) {
       }),
       clearTemp: assign(ctx => ({ ...ctx, start: undefined, node: undefined, lastEvent: undefined, eventBus: eventBus })),
       updateLastEvent: assign((ctx, evt) => {
-
         return { ...ctx, lastEvent: evt, eventBus: eventBus };
       }),
       notifyDragStart: ctx => { 
         if (eventBus?.emit) eventBus.emit('dragStart', ctx);
       },
       dragNode: (ctx, evt) => {
-
         const currentEvent = evt || ctx.lastEvent;
         if (!currentEvent || !currentEvent.world) return;
         if (eventBus?.emit) eventBus.emit('drag', { node: ctx.node, pos: currentEvent.world });
       },
       finishDrag: ctx => { 
-
         if (eventBus?.emit) eventBus.emit('dragEnd', ctx); 
       },
       notifyPanStart: ctx => { 
@@ -79,13 +76,21 @@ function createInteractionMachine(context = {}) {
           eventBus.emit('panStart', ctx);
         }
       },
+      // ✅ FIX: This logic correctly calculates the incremental pan delta.
       updatePan: (ctx, evt) => {
         const currentEvent = evt || ctx.lastEvent;
-        if (!currentEvent || !currentEvent.world) return;
-        if (eventBus?.emit) eventBus.emit('pan', { start: ctx.start, pos: currentEvent.world });
+        const lastEvent = ctx.lastEvent;
+        
+        if (!currentEvent || !currentEvent.world || !lastEvent || !lastEvent.world) return;
+        
+        const dx = currentEvent.world.x - lastEvent.world.x;
+        const dy = currentEvent.world.y - lastEvent.world.y;
+
+        if (eventBus?.emit && (dx !== 0 || dy !== 0)) {
+          eventBus.emit('pan', { dx, dy });
+        }
       },
       finishPan: ctx => { 
-
         if (eventBus?.emit) eventBus.emit('panEnd', ctx); 
       },
     }
@@ -135,24 +140,29 @@ export class InteractionManager {
   }
   onPointerMove(e) {
     if (this._destroyed) return;
-    const rect = this.canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-    const world = this.camera.screenToWorld(mouseX, mouseY);
-    let target = null;
-    try {
-      target = this.spatialIndex?.queryPoint?.(world) || null;
-    } catch (_) { target = null; }
+    // It's important to check if the service is stopped before sending more events.
+    if (this.service.status === 0) { // 0 = not started, 1 = running, 2 = stopped
+        const rect = this.canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        const world = this.camera.screenToWorld(mouseX, mouseY);
+        let target = null;
+        try {
+          target = this.spatialIndex?.queryPoint?.(world) || null;
+        } catch (_) { target = null; }
 
-    this.service.send({ type: 'POINTER_MOVE', world, target, originalEvent: e });
+        this.service.send({ type: 'POINTER_MOVE', world, target, originalEvent: e });
+    }
   }
   onPointerUp(e) {
     if (this._destroyed) return;
-    const rect = this.canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-    const world = this.camera.screenToWorld(mouseX, mouseY);
-    this.service.send({ type: 'POINTER_UP', world, target: null, originalEvent: e });
+    if (this.service.status === 0) {
+        const rect = this.canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        const world = this.camera.screenToWorld(mouseX, mouseY);
+        this.service.send({ type: 'POINTER_UP', world, target: null, originalEvent: e });
+    }
   }
   on(type, cb) { this.eventBus.on(type, cb); }
   off(type, cb) { this.eventBus.off(type, cb); }

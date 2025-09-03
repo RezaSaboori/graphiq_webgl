@@ -100,11 +100,10 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
       canvas.style.cursor = 'grabbing';
     });
 
-    manager.on('pan', ({ pos, start }) => {
-      if (start) {
-        const dx = pos.x - start.x;
-        const dy = pos.y - start.y;
-        sceneModel.panBy(dx, dy);
+    manager.on('pan', ({ dx, dy }) => {
+      // Use the incremental delta. The camera moves opposite to the mouse.
+      if (dx !== 0 || dy !== 0) {
+        sceneModel.panBy(-dx, -dy);
       }
     });
 
