@@ -77,8 +77,11 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
     managerRef.current = manager;
 
     // High-level subscriptions
+    let lastPos = null;
+    
     manager.on('dragStart', (ctx) => {
       setDraggedNode(ctx.node?.id ?? null);
+      canvas.style.cursor = 'move';
     });
     manager.on('drag', ({ node, pos }) => {
       if (node) {
@@ -89,15 +92,38 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
     });
     manager.on('dragEnd', () => {
       setDraggedNode(null);
+      canvas.style.cursor = '';
     });
-    manager.on('pan', ({ pos, start }) => {
-      if (start) {
-        const dx = pos.x - start.x;
-        const dy = pos.y - start.y;
-        camera.panTo(camera.x - dx, camera.y - dy);
+    
+    manager.on('panStart', ({ start }) => {
+      lastPos = start;
+      canvas.style.cursor = 'grabbing';
+    });
+    manager.on('pan', ({ pos }) => {
+      if (lastPos) {
+        const dx = pos.x - lastPos.x;
+        const dy = pos.y - lastPos.y;
+        camera.panBy(-dx, -dy);
         rendererRef.current.render();
+        lastPos = pos;
       }
     });
+    manager.on('panEnd', () => {
+      lastPos = null;
+      canvas.style.cursor = '';
+    });
+
+    // Zoom handler (mouse wheel)
+    const wheelHandler = (e) => {
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      const zoomFactor = e.deltaY < 0 ? 1.08 : 1/1.08;
+      camera.zoomTo(camera.zoom * zoomFactor, mouseX, mouseY);
+      rendererRef.current.render();
+    };
+    canvas.addEventListener('wheel', wheelHandler, { passive: false });
 
     const handleResize = () => {
       const box = canvas.parentElement ?? canvas;
@@ -115,6 +141,7 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
 
     return () => {
       ro.disconnect();
+      canvas.removeEventListener('wheel', wheelHandler);
       managerRef.current?.destroy?.();
       managerRef.current = null;
       rendererRef.current?.dispose?.();
