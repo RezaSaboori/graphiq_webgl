@@ -17,7 +17,7 @@ const GraphCanvas = forwardRef(({
     const containerRef = useRef(null);
     
     // Custom hook for WebGL setup and rendering
-    const { renderer, updateState, handleInteraction } = useWebGLRenderer({
+    const { renderer, updateState, handleInteraction, updateViewport } = useWebGLRenderer({
         canvasRef,
         camera,
         graph
@@ -38,6 +38,13 @@ const GraphCanvas = forwardRef(({
         }
     }, [renderer, selectedNodes, selectedEdges, expandedProperties, interactionMode]);
 
+    // Update viewport when canvas size changes
+    useEffect(() => {
+        if (renderer && canvasSize.width > 0 && canvasSize.height > 0) {
+        updateViewport(canvasSize.width, canvasSize.height);
+        }
+    }, [renderer, canvasSize, updateViewport]);
+
     // Handle canvas interactions
     const handleCanvasInteraction = useCallback((event) => {
         if (!renderer) return;
@@ -55,7 +62,7 @@ const GraphCanvas = forwardRef(({
         <div 
         ref={containerRef}
         className={`graph-canvas-container ${interactionMode}`}
-        style={{ width: '100%', height: '100%', position: 'relative' }}
+        style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}
         >
         <canvas
             ref={(node) => {

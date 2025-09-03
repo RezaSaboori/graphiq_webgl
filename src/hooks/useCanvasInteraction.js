@@ -45,9 +45,15 @@ export const useCanvasInteraction = (canvasRef) => {
         
         const canvas = canvasRef.current;
         const newCamera = new Camera({
-            viewportWidth: canvas.width || canvas.clientWidth,
-            viewportHeight: canvas.height || canvas.clientHeight,
+            viewportWidth: canvas.width || canvas.clientWidth || window.innerWidth,
+            viewportHeight: canvas.height || canvas.clientHeight || window.innerHeight,
             zoom: 1
+        });
+        
+        console.log('Camera initialized:', {
+            viewportWidth: newCamera.viewportWidth,
+            viewportHeight: newCamera.viewportHeight,
+            zoom: newCamera.zoom
         });
         
         setCamera(newCamera);
@@ -55,7 +61,14 @@ export const useCanvasInteraction = (canvasRef) => {
 
     const panTo = useCallback((x, y, smooth = false) => {
         setCamera(prev => {
-        const newCamera = { ...prev };
+        // Create a new Camera instance instead of spreading the object
+        const newCamera = new Camera({
+            x: prev.x,
+            y: prev.y,
+            zoom: prev.zoom,
+            viewportWidth: prev.viewportWidth,
+            viewportHeight: prev.viewportHeight
+        });
         if (smooth) {
             // Implement smooth panning with animation
             animateCameraTo(newCamera, { x, y });
@@ -69,7 +82,14 @@ export const useCanvasInteraction = (canvasRef) => {
 
     const zoomTo = useCallback((zoom, centerX, centerY, smooth = false) => {
         setCamera(prev => {
-        const newCamera = { ...prev };
+        // Create a new Camera instance instead of spreading the object
+        const newCamera = new Camera({
+            x: prev.x,
+            y: prev.y,
+            zoom: prev.zoom,
+            viewportWidth: prev.viewportWidth,
+            viewportHeight: prev.viewportHeight
+        });
         if (centerX !== undefined && centerY !== undefined) {
             newCamera.zoomTo(zoom, centerX, centerY);
         } else {
@@ -87,7 +107,14 @@ export const useCanvasInteraction = (canvasRef) => {
         const padding = 50;
         
         setCamera(prev => {
-        const newCamera = { ...prev };
+        // Create a new Camera instance instead of spreading the object
+        const newCamera = new Camera({
+            x: prev.x,
+            y: prev.y,
+            zoom: prev.zoom,
+            viewportWidth: prev.viewportWidth,
+            viewportHeight: prev.viewportHeight
+        });
         newCamera.fitWorldRect({
             left: bounds.minX,
             top: bounds.minY,
@@ -99,12 +126,17 @@ export const useCanvasInteraction = (canvasRef) => {
     }, []);
 
     const resetView = useCallback(() => {
-        setCamera(prev => ({
-        ...prev,
-        x: 0,
-        y: 0,
-        zoom: 1
-        }));
+        setCamera(prev => {
+        // Create a new Camera instance instead of spreading the object
+        const newCamera = new Camera({
+            x: 0,
+            y: 0,
+            zoom: 1,
+            viewportWidth: prev.viewportWidth,
+            viewportHeight: prev.viewportHeight
+        });
+        return newCamera;
+        });
     }, []);
 
     return {

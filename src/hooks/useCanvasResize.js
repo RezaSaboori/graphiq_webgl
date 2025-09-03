@@ -2,7 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { debounce } from '../utils/debounce';
 
 export const useCanvasResize = (containerRef) => {
-    const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
+    const [canvasSize, setCanvasSize] = useState({ 
+        width: window.innerWidth, 
+        height: window.innerHeight 
+    }); // Full screen default
 
     // Debounced resize handler for performance
     const handleResize = useCallback(

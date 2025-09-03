@@ -29,18 +29,19 @@ const GraphVisualization = ({ initialData, onNodeSelect, onEdgeSelect }) => {
         panTo,
         zoomTo,
         fitToView,
-        resetView
+        resetView,
+        setInteractionMode
     } = useCanvasInteraction(canvasRef);
 
     return (
-        <div className="graph-visualization">
+        <div className="graph-visualization" style={{width: "100%", height: "100%", position: "relative"}}>
         <GraphToolbar 
-            onFitToView={fitToView}
+            onFitToView={() => fitToView(graph ? [...graph.nodes.values()] : [])}
             onResetView={resetView}
             viewMode={viewMode}
             filters={filters}
         />
-        <div className="graph-container">
+        <div className="graph-container" style={{width: "100%", height: "100%", position: "relative"}}>
             <GraphCanvas
             ref={canvasRef}
             graph={graph}
