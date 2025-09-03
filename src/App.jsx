@@ -33,8 +33,9 @@ function App() {
     // Ensure viewport matches the canvas size before first render
     rendererRef.current.setViewportSize(canvas.width, canvas.height);
 
-    // Load data and background color
+    // --- KEY PART: Load and assign the graph ---
     graphRef.current = loadGraphFromJSON(data);
+    rendererRef.current.graph = graphRef.current; // <--- CRITICAL
     const hex = data.graph?.style?.["background-color"] || "#222222";
     bgColorRef.current = hexToRgbNorm(hex).concat([1]);
 
@@ -43,18 +44,12 @@ function App() {
       setCanvasSize();
       cameraRef.current.setViewportSize(canvas.width, canvas.height);
       rendererRef.current.setViewportSize(canvas.width, canvas.height);
-      rendererRef.current.render(
-        [...graphRef.current.nodes.values()],
-        bgColorRef.current
-      );
+      rendererRef.current.render(bgColorRef.current);
     };
     window.addEventListener("resize", handleResize);
 
-    // Initial render
-    rendererRef.current.render(
-      [...graphRef.current.nodes.values()],
-      bgColorRef.current
-    );
+    // Initial render (full graph)
+    rendererRef.current.render(bgColorRef.current);
 
     return () => window.removeEventListener("resize", handleResize);
   }, []);

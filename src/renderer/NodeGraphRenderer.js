@@ -106,27 +106,25 @@ export class NodeGraphRenderer {
         gl.disableVertexAttribArray(aPos);
     }
 
-    render(nodesParam = [], bgColor = [0.12, 0.12, 0.13, 1]) {
+    render(bgColor = [0.12, 0.12, 0.13, 1]) {
         const gl = this.gl;
         gl.clear(gl.COLOR_BUFFER_BIT);
 
         this.drawBackground(bgColor);
 
-        // === NEW: Instanced rendering for edges then nodes ===
+        // === Instanced rendering for edges then nodes ===
         const { viewportWidth:w, viewportHeight:h, zoom, x, y } = this.camera;
         const sx = 2/(w/zoom), sy = 2/(h/zoom), tx = -sx*x-1, ty = -sy*y-1;
         const mat3 = new Float32Array([sx,0,0, 0,sy,0, tx,ty,1]);
 
         // Edges first (if graph available)
-        if (this.graph && this.edgeRenderer) {
+        if (this.graph && this.edgeRenderer && this.instancedRenderer) {
             const nodes = [...this.graph.nodes.values()];
             const edges = [...this.graph.edges.values()];
             const nodeMap = this.graph.nodes;
             this.edgeRenderer.updateEdges(edges, nodeMap);
             this.edgeRenderer.render(mat3);
             this.instancedRenderer.updateNodes(nodes);
-        } else {
-            this.instancedRenderer.updateNodes(nodesParam);
         }
         this.instancedRenderer.render(mat3);
     }
