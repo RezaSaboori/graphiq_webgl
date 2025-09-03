@@ -47,15 +47,24 @@ function createInteractionMachine(context = {}) {
       }
     },
     actions: {
-      setStart: assign((ctx, evt) => ({ ...ctx, start: evt.world, node: evt.target?.node })),
+      setStart: assign((ctx, evt) => {
+        if (!evt) return { ...ctx, start: null, node: null };
+        return { ...ctx, start: evt?.world ?? null, node: evt?.target?.node };
+      }),
       clearTemp: assign(_ => ({ start: undefined, node: undefined })),
       notifyDragStart: ctx => ctx.eventBus.emit('dragStart', ctx),
-      dragNode: (ctx, evt) => ctx.eventBus.emit('drag', { ...ctx, pos: evt.world }),
+      dragNode: (ctx, evt) => {
+        if (!evt || !evt.world) return;
+        ctx.eventBus.emit('drag', { ...ctx, pos: evt.world });
+      },
       notifyDrag: ctx => {},
       finishDrag: ctx => ctx.eventBus.emit('dragEnd', ctx),
       notifyDragEnd: ctx => {},
       notifyPanStart: ctx => ctx.eventBus.emit('panStart', ctx),
-      updatePan: (ctx, evt) => ctx.eventBus.emit('pan', { ...ctx, pos: evt.world }),
+      updatePan: (ctx, evt) => {
+        if (!evt || !evt.world) return;
+        ctx.eventBus.emit('pan', { ...ctx, pos: evt.world });
+      },
       finishPan: ctx => ctx.eventBus.emit('panEnd', ctx),
       notifyPanEnd: ctx => {},
     }
