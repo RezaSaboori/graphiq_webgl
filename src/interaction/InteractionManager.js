@@ -17,7 +17,7 @@ function createInteractionMachine(context = {}) {
       idle: {
         on: {
           POINTER_DOWN: [
-            { target: 'draggingNode', cond: 'onNode', actions: 'setStart' },
+            { target: 'draggingNode', guard: 'onNode', actions: 'setStart' },
             { target: 'panning', actions: 'setStart' }
           ],
           POINTER_MOVE: [],

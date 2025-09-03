@@ -3,6 +3,7 @@ import { Camera } from '../utils/camera';
 import { InteractionManager } from '../interaction/InteractionManager';
 import { SimpleSpatialIndex } from '../interaction/SimpleSpatialIndex';
 import { NodeGraphRenderer } from '../renderer/NodeGraphRenderer';
+import { Graph } from '../graph/Graph';
 
 export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
   const canvasRef = useRef(null);
@@ -21,14 +22,36 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
     // Setup core systems
     const camera = new Camera({ viewportWidth: canvas.width, viewportHeight: canvas.height });
     const spatial = new SimpleSpatialIndex();
-    if (graphData?.nodes) {
-      const nodesArray = Array.isArray(graphData.nodes) ? graphData.nodes : [...graphData.nodes.values?.() ?? []];
-      spatial.rebuild(nodesArray);
+
+    // Ensure we always operate on a Graph instance
+    let graph;
+    if (graphData instanceof Graph) {
+      graph = graphData;
+    } else {
+      graph = new Graph();
+      // ingest nodes
+      if (Array.isArray(graphData?.nodes)) {
+        for (const node of graphData.nodes) graph.addNode(node);
+      } else if (graphData?.nodes && typeof graphData.nodes.values === 'function') {
+        for (const node of graphData.nodes.values()) graph.addNode(node);
+      } else if (graphData?.nodes && typeof graphData.nodes === 'object') {
+        for (const node of Object.values(graphData.nodes)) graph.addNode(node);
+      }
+      // ingest edges
+      if (Array.isArray(graphData?.edges)) {
+        for (const edge of graphData.edges) graph.addEdge(edge);
+      } else if (graphData?.edges && typeof graphData.edges.values === 'function') {
+        for (const edge of graphData.edges.values()) graph.addEdge(edge);
+      } else if (graphData?.edges && typeof graphData.edges === 'object') {
+        for (const edge of Object.values(graphData.edges)) graph.addEdge(edge);
+      }
     }
+
+    spatial.rebuild([...graph.nodes.values()]);
 
     const renderer = new NodeGraphRenderer(gl, canvas, camera);
     rendererRef.current = renderer;
-    rendererRef.current.updateGraph(graphData, { selectedNodes, nodeWidth });
+    rendererRef.current.updateGraph(graph, { selectedNodes, nodeWidth });
 
     // FSM + manager
     const manager = new InteractionManager(canvas, camera, spatial);
@@ -42,7 +65,7 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
       if (node) {
         node.position.x = pos.x;
         node.position.y = pos.y;
-        rendererRef.current.updateGraph(graphData, { selectedNodes, nodeWidth });
+        rendererRef.current.updateGraph(graph, { selectedNodes, nodeWidth });
       }
     });
     manager.on('dragEnd', () => {
@@ -53,7 +76,7 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
         const dx = pos.x - start.x;
         const dy = pos.y - start.y;
         camera.panTo(camera.x - dx, camera.y - dy);
-        rendererRef.current.render(graphData, { selectedNodes, nodeWidth });
+        rendererRef.current.render();
       }
     });
 
