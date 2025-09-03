@@ -1,6 +1,8 @@
 import nodeVertSrc from './shaders/node.vert?raw';
 import nodeFragSrc from './shaders/node.frag?raw';
 import bgFragSrc from './shaders/background.frag?raw';
+import { InstancedNodeRenderer } from './InstancedNodeRenderer';
+
 
 // Utility to compile shaders/programs
 function createShader(gl, type, src) {
@@ -37,6 +39,7 @@ export class NodeGraphRenderer {
         this.canvas = canvas;
         this.camera = camera;
 
+        this.instancedRenderer = new InstancedNodeRenderer(gl, camera);
         this.init();
     }
     init() {
@@ -101,36 +104,18 @@ export class NodeGraphRenderer {
         gl.disableVertexAttribArray(aPos);
     }
 
-    render(nodes, bgColor = [0.12, 0.12, 0.13, 1]) {
+    render(nodes = [], bgColor = [0.12, 0.12, 0.13, 1]) {
         const gl = this.gl;
         gl.clear(gl.COLOR_BUFFER_BIT);
 
-        // 1. Draw background
         this.drawBackground(bgColor);
 
-        // 2. Draw all nodes
-        gl.useProgram(this.nodeProg);
-        const w = this.camera.viewportWidth, h = this.camera.viewportHeight;
-        const zoom = this.camera.zoom, cx = this.camera.x, cy = this.camera.y;
-        const sx = 2/(w/zoom), sy = 2/(h/zoom), tx = -sx*cx-1, ty = -sy*cy-1;
-        const mat3 = new Float32Array([
-        sx,0,0, 0,sy,0, tx,ty,1
-        ]);
-        gl.uniformMatrix3fv(this.u_screenFromWorld, false, mat3);
+        // === NEW: Instanced rendering for all nodes ===
+        const { viewportWidth:w, viewportHeight:h, zoom, x, y } = this.camera;
+        const sx = 2/(w/zoom), sy = 2/(h/zoom), tx = -sx*x-1, ty = -sy*y-1;
+        const mat3 = new Float32Array([sx,0,0, 0,sy,0, tx,ty,1]);
 
-        nodes.forEach(node => {
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.rectVBO);
-        gl.enableVertexAttribArray(this.a_position);
-        gl.vertexAttribPointer(this.a_position, 2, gl.FLOAT, false, 0, 0);
-        gl.disableVertexAttribArray(this.a_world);
-        gl.vertexAttrib2f(this.a_world, node.position.x, node.position.y);
-        gl.disableVertexAttribArray(this.a_size);
-        gl.vertexAttrib2f(this.a_size, node.width || 300, node.height || 100);
-        const rgb = hexToRgbNorm(node.color || "#444");
-        gl.uniform4f(this.u_color, rgb[0], rgb[1], rgb[2], 1);
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.rectIBO);
-        gl.drawElements(gl.TRIANGLE_STRIP, 4, gl.UNSIGNED_SHORT, 0);
-        gl.disableVertexAttribArray(this.a_position);
-        });
+        this.instancedRenderer.updateNodes(nodes);
+        this.instancedRenderer.render(mat3);
     }
 }
