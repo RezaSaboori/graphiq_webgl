@@ -107,6 +107,8 @@ export class NodeGraphRenderer {
     }
 
     render(bgColor = [0.12, 0.12, 0.13, 1]) {
+        if (!this.camera) return; // Prevent crashing if camera isn't ready
+
         const gl = this.gl;
         gl.clear(gl.COLOR_BUFFER_BIT);
 

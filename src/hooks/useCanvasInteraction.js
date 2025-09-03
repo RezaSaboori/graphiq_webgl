@@ -1,10 +1,57 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { Camera } from '../utils/camera';
 
-export const useCanvasInteraction = (initialCamera) => {
-    const [camera, setCamera] = useState(initialCamera);
+// Utility function to calculate bounding box of nodes
+const calculateNodeBounds = (nodes) => {
+    if (!nodes || nodes.length === 0) {
+        return { minX: 0, minY: 0, maxX: 100, maxY: 100 };
+    }
+    
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    
+    nodes.forEach(node => {
+        if (node.position) {
+            const x = node.position.x;
+            const y = node.position.y;
+            const width = node.width || 300;
+            const height = node.height || 100;
+            
+            minX = Math.min(minX, x - width / 2);
+            minY = Math.min(minY, y - height / 2);
+            maxX = Math.max(maxX, x + width / 2);
+            maxY = Math.max(maxY, y + height / 2);
+        }
+    });
+    
+    return { minX, minY, maxX, maxY };
+};
+
+// Utility function for smooth camera animation
+const animateCameraTo = (camera, target) => {
+    // Simple implementation - could be enhanced with proper animation
+    camera.x = target.x;
+    camera.y = target.y;
+};
+
+export const useCanvasInteraction = (canvasRef) => {
+    const [camera, setCamera] = useState(null);
     const [isInteracting, setIsInteracting] = useState(false);
     const [interactionMode, setInteractionMode] = useState('select'); // 'select', 'pan', 'zoom'
     const lastInteractionRef = useRef({ x: 0, y: 0 });
+
+    // Initialize camera when canvas is ready
+    useEffect(() => {
+        if (!canvasRef?.current) return;
+        
+        const canvas = canvasRef.current;
+        const newCamera = new Camera({
+            viewportWidth: canvas.width || canvas.clientWidth,
+            viewportHeight: canvas.height || canvas.clientHeight,
+            zoom: 1
+        });
+        
+        setCamera(newCamera);
+    }, [canvasRef]);
 
     const panTo = useCallback((x, y, smooth = false) => {
         setCamera(prev => {
@@ -41,7 +88,12 @@ export const useCanvasInteraction = (initialCamera) => {
         
         setCamera(prev => {
         const newCamera = { ...prev };
-        newCamera.fitToBounds(bounds, padding);
+        newCamera.fitWorldRect({
+            left: bounds.minX,
+            top: bounds.minY,
+            right: bounds.maxX,
+            bottom: bounds.maxY
+        }, padding);
         return newCamera;
         });
     }, []);

@@ -5,29 +5,35 @@ export const useWebGLRenderer = ({ canvasRef, camera, graph }) => {
     const rendererRef = useRef(null);
     const animationFrameRef = useRef(null);
 
-    // Initialize WebGL renderer
+    // Initialize WebGL renderer - ensure camera exists first
     useEffect(() => {
         if (!canvasRef.current) return;
+        
+        // Don't proceed until camera is ready!
+        if (!camera) {
+            return; // Camera must be ready first!
+        }
 
         const canvas = canvasRef.current;
         const gl = canvas.getContext('webgl2');
         
         if (!gl) {
-        console.error('WebGL2 not supported');
-        return;
+            console.error('WebGL2 not supported');
+            return;
         }
 
+        // Now create renderer with existing camera
         const renderer = new NodeGraphRenderer(gl, canvas, camera);
         renderer.graph = graph;
         rendererRef.current = renderer;
 
         return () => {
-        if (animationFrameRef.current) {
-            cancelAnimationFrame(animationFrameRef.current);
-        }
-        renderer?.dispose?.();
+            if (animationFrameRef.current) {
+                cancelAnimationFrame(animationFrameRef.current);
+            }
+            renderer?.dispose?.();
         };
-    }, [canvasRef, camera]);
+    }, [canvasRef, camera, graph]);
 
     // Render loop with proper cleanup
     const render = useCallback((bgColor = [0.12, 0.12, 0.13, 1]) => {

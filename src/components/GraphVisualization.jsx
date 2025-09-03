@@ -6,6 +6,8 @@ import GraphControls from './GraphControls';
 import GraphToolbar from './GraphToolbar';
 
 const GraphVisualization = ({ initialData, onNodeSelect, onEdgeSelect }) => {
+  const canvasRef = useRef(null);
+  
   // Container handles all state management and business logic
     const {
         graph,
@@ -28,7 +30,7 @@ const GraphVisualization = ({ initialData, onNodeSelect, onEdgeSelect }) => {
         zoomTo,
         fitToView,
         resetView
-    } = useCanvasInteraction();
+    } = useCanvasInteraction(canvasRef);
 
     return (
         <div className="graph-visualization">
@@ -40,6 +42,7 @@ const GraphVisualization = ({ initialData, onNodeSelect, onEdgeSelect }) => {
         />
         <div className="graph-container">
             <GraphCanvas
+            ref={canvasRef}
             graph={graph}
             camera={camera}
             selectedNodes={selectedNodes}

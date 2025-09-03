@@ -1,8 +1,8 @@
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback, forwardRef } from 'react';
 import { useWebGLRenderer } from '../hooks/useWebGLRenderer';
 import { useCanvasResize } from '../hooks/useCanvasResize';
 
-const GraphCanvas = ({
+const GraphCanvas = forwardRef(({
     graph,
     camera,
     selectedNodes,
@@ -12,7 +12,7 @@ const GraphCanvas = ({
     onEdgeSelect,
     isInteracting,
     interactionMode
-    }) => {
+}, ref) => {
     const canvasRef = useRef(null);
     const containerRef = useRef(null);
     
@@ -58,7 +58,16 @@ const GraphCanvas = ({
         style={{ width: '100%', height: '100%', position: 'relative' }}
         >
         <canvas
-            ref={canvasRef}
+            ref={(node) => {
+                canvasRef.current = node;
+                if (ref) {
+                    if (typeof ref === 'function') {
+                        ref(node);
+                    } else {
+                        ref.current = node;
+                    }
+                }
+            }}
             width={canvasSize.width}
             height={canvasSize.height}
             onClick={handleCanvasInteraction}
@@ -74,6 +83,8 @@ const GraphCanvas = ({
         />
         </div>
     );
-};
+});
+
+GraphCanvas.displayName = 'GraphCanvas';
 
 export default GraphCanvas;
