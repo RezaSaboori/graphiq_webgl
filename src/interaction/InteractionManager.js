@@ -42,7 +42,7 @@ function createInteractionMachine(context = {}) {
   }, {
     guards: {
       onNode: (_ctx, evt) => {
-        console.log('FSM guard onNode:', { evt, target: evt?.target, targetType: evt?.target?.type });
+
         if (!evt || !evt.target) return false;
         return evt.target.type === 'node';
       }
@@ -55,43 +55,31 @@ function createInteractionMachine(context = {}) {
       clearTemp: assign(ctx => ({ ...ctx, start: undefined, node: undefined, lastEvent: undefined, eventBus: ctx.eventBus })),
       updateLastEvent: assign((ctx, evt) => ({ ...ctx, lastEvent: evt, eventBus: ctx.eventBus })),
       notifyDragStart: ctx => { 
-        console.log('FSM: notifyDragStart', ctx);
-        if (ctx?.eventBus?.emit) {
-          ctx.eventBus.emit('dragStart', ctx);
-          ctx.eventBus.emit('dirty'); // Mark scene as dirty
-        }
+
+        if (ctx?.eventBus?.emit) ctx.eventBus.emit('dragStart', ctx);
       },
       dragNode: (ctx, evt) => {
-        console.log('FSM: dragNode', { ctx, evt });
+
         const currentEvent = evt || ctx.lastEvent;
         if (!currentEvent || !currentEvent.world) return;
-        if (ctx?.eventBus?.emit) {
-          ctx.eventBus.emit('drag', { node: ctx.node, pos: currentEvent.world });
-          ctx.eventBus.emit('dirty'); // Mark scene as dirty
-        }
+        if (ctx?.eventBus?.emit) ctx.eventBus.emit('drag', { node: ctx.node, pos: currentEvent.world });
       },
       finishDrag: ctx => { 
-        console.log('FSM: finishDrag', ctx);
+
         if (ctx?.eventBus?.emit) ctx.eventBus.emit('dragEnd', ctx); 
       },
       notifyPanStart: ctx => { 
-        console.log('FSM: notifyPanStart', ctx);
-        if (ctx?.eventBus?.emit) {
-          ctx.eventBus.emit('panStart', ctx);
-          ctx.eventBus.emit('dirty'); // Mark scene as dirty
-        }
+
+        if (ctx?.eventBus?.emit) ctx.eventBus.emit('panStart', ctx);
       },
       updatePan: (ctx, evt) => {
-        console.log('FSM: updatePan', { ctx, evt });
+
         const currentEvent = evt || ctx.lastEvent;
         if (!currentEvent || !currentEvent.world) return;
-        if (ctx?.eventBus?.emit) {
-          ctx.eventBus.emit('pan', { start: ctx.start, pos: currentEvent.world });
-          ctx.eventBus.emit('dirty'); // Mark scene as dirty
-        }
+        if (ctx?.eventBus?.emit) ctx.eventBus.emit('pan', { start: ctx.start, pos: currentEvent.world });
       },
       finishPan: ctx => { 
-        console.log('FSM: finishPan', ctx);
+
         if (ctx?.eventBus?.emit) ctx.eventBus.emit('panEnd', ctx); 
       },
     }
@@ -126,27 +114,36 @@ export class InteractionManager {
   }
   onPointerDown(e) {
     if (this._destroyed) return;
-    const world = this.camera.screenToWorld(e.offsetX, e.offsetY);
+    const rect = this.canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    const world = this.camera.screenToWorld(mouseX, mouseY);
     let target = null;
     try {
       target = this.spatialIndex?.queryPoint?.(world) || null;
     } catch (_) { target = null; }
-    console.log('POINTER_DOWN', { world, target: target?.type, nodeId: target?.node?.id });
+
     this.service.send({ type: 'POINTER_DOWN', world, target, originalEvent: e });
   }
   onPointerMove(e) {
     if (this._destroyed) return;
-    const world = this.camera.screenToWorld(e.offsetX, e.offsetY);
+    const rect = this.canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    const world = this.camera.screenToWorld(mouseX, mouseY);
     let target = null;
     try {
       target = this.spatialIndex?.queryPoint?.(world) || null;
     } catch (_) { target = null; }
-    // console.log('POINTER_MOVE', { world, target, offsetX: e.offsetX, offsetY: e.offsetY });
+
     this.service.send({ type: 'POINTER_MOVE', world, target, originalEvent: e });
   }
   onPointerUp(e) {
     if (this._destroyed) return;
-    const world = this.camera.screenToWorld(e.offsetX, e.offsetY);
+    const rect = this.canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    const world = this.camera.screenToWorld(mouseX, mouseY);
     this.service.send({ type: 'POINTER_UP', world, target: null, originalEvent: e });
   }
   on(type, cb) { this.eventBus.on(type, cb); }

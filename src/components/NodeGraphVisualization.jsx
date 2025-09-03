@@ -4,14 +4,18 @@ import { InteractionManager } from '../interaction/InteractionManager';
 import { SimpleSpatialIndex } from '../interaction/SimpleSpatialIndex';
 import { NodeGraphRenderer, hexToRgbNorm } from '../renderer/NodeGraphRenderer';
 import { Graph } from '../graph/Graph';
+import { SceneModel } from '../scene/SceneModel';
+import { DrawLoop } from '../scene/DrawLoop';
 
 export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
   const canvasRef = useRef(null);
   const rendererRef = useRef(null);
   const managerRef = useRef(null);
   const cameraRef = useRef(null);
+  const sceneModelRef = useRef(null);
+  const drawLoopRef = useRef(null);
 
-  const [selectedNodes, setSelectedNodes] = useState(new Set());
+  // React state only for UI overlays, not scene state
   const [draggedNode, setDraggedNode] = useState(null);
 
   useEffect(() => {
@@ -20,14 +24,15 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
     const gl = canvas.getContext('webgl2');
     if (!gl) return;
 
-    // Setup core systems
+    // === PROFESSIONAL ARCHITECTURE SETUP ===
+
+    // 1. Setup core systems
     const camera = new Camera({ viewportWidth: canvas.width, viewportHeight: canvas.height });
     cameraRef.current = camera;
     const spatial = new SimpleSpatialIndex();
 
-    // Ensure we always operate on a Graph instance
+    // 2. Process graph data
     let graph;
-    // Support various shapes: Graph instance, {nodes, edges}, or {graph:{nodes,relationships}}
     const source = graphData?.graph ? graphData.graph : graphData;
     if (source instanceof Graph) {
       graph = source;
@@ -35,7 +40,7 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
       graph = graphData;
     } else {
       graph = new Graph();
-      // ingest nodes
+      // Ingest nodes
       const nodesInput = source?.nodes;
       if (Array.isArray(nodesInput)) {
         for (const node of nodesInput) graph.addNode(node);
@@ -44,7 +49,7 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
       } else if (nodesInput && typeof nodesInput === 'object') {
         for (const node of Object.values(nodesInput)) graph.addNode(node);
       }
-      // ingest edges
+      // Ingest edges
       const edgesInput = source?.edges ?? source?.relationships;
       if (Array.isArray(edgesInput)) {
         for (const edge of edgesInput) graph.addEdge(edge);
@@ -55,117 +60,110 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
       }
     }
 
-    spatial.rebuild([...graph.nodes.values()]);
-
+    // 3. Setup renderer and draw loop
     const renderer = new NodeGraphRenderer(gl, canvas, camera);
     rendererRef.current = renderer;
+    
+    const drawLoop = new DrawLoop(renderer);
+    drawLoopRef.current = drawLoop;
 
-    // --- DRAW LOOP SYSTEM ---
-    let dirty = false;
-    let animationFrameId = null;
-    
-    function markDirty() {
-      dirty = true;
-    }
-    
-    function drawLoop() {
-      if (dirty) {
-        renderer.render();
-        dirty = false;
-      }
-      animationFrameId = requestAnimationFrame(drawLoop);
-    }
-    
-    // Start the draw loop
-    drawLoop();
-    // Initial fit to content if available
-    const nodesArr = [...graph.nodes.values()];
-    if (nodesArr.length > 0) {
-      const left = Math.min(...nodesArr.map(n => (n.position?.x ?? 0) - (n.width ?? 300) / 2));
-      const right = Math.max(...nodesArr.map(n => (n.position?.x ?? 0) + (n.width ?? 300) / 2));
-      const top = Math.min(...nodesArr.map(n => (n.position?.y ?? 0) - (n.height ?? 100) / 2));
-      const bottom = Math.max(...nodesArr.map(n => (n.position?.y ?? 0) + (n.height ?? 100) / 2));
-      console.log('Camera fitWorldRect:', { left, top, right, bottom });
-      camera.fitWorldRect({ left, top, right, bottom }, 32);
-      console.log('Camera after fit:', { x: camera.x, y: camera.y, zoom: camera.zoom });
-    }
-    rendererRef.current.updateGraph(graph, { selectedNodes, nodeWidth });
-    // Background color from data if present
-    const bgHex = source?.style?.['background-color'] || source?.style?.backgroundColor;
-    const bg = bgHex ? [...hexToRgbNorm(bgHex), 1] : undefined;
-    if (bg) {
-      rendererRef.current.render(bg);
-    } else {
-      markDirty(); // Use dirty flag for initial render
-    }
+    // 4. Create scene model (centralized state management)
+    const sceneModel = new SceneModel(graph, camera, spatial, renderer, () => drawLoop.markDirty());
+    sceneModelRef.current = sceneModel;
 
-    // FSM + manager
+    // 5. Initialize spatial index
+    spatial.rebuild([...graph.nodes.values()]);
+
+    // 6. Setup interaction manager
     const manager = new InteractionManager(canvas, camera, spatial);
     managerRef.current = manager;
 
-    // Listen for dirty events from FSM
-    manager.on('dirty', () => {
-      markDirty();
-    });
-
-    // --- INTERACTION SIDE EFFECTS ---
-    let lastPanPos = null;      // For panning deltas
-    let lastDraggedNode = null; // For node drag
-
-    // PAN Events
-    manager.on('panStart', ({ start }) => {
-      console.log('panStart event received', { start });
-      lastPanPos = start;
-      canvas.style.cursor = 'grabbing';
-    });
-    manager.on('pan', ({ pos }) => {
-      console.log('pan event received', { pos, lastPanPos });
-      if (lastPanPos) {
-        const dx = pos.x - lastPanPos.x;
-        const dy = pos.y - lastPanPos.y;
-        camera.panBy(-dx, -dy);
-        markDirty(); // Use dirty flag instead of direct render
-        lastPanPos = pos;
-      }
-    });
-    manager.on('panEnd', () => {
-      console.log('panEnd event received');
-      lastPanPos = null;
-      canvas.style.cursor = '';
-    });
-
-    // NODE DRAG Events
+    // 7. Wire FSM events to scene model (FSM-driven updates)
     manager.on('dragStart', ({ node }) => {
-      console.log('dragStart event received', { node });
-      lastDraggedNode = node;
+
+      setDraggedNode(node?.id ?? null);
       canvas.style.cursor = 'move';
     });
+
     manager.on('drag', ({ node, pos }) => {
-      console.log('drag event received', { node, pos });
+
       if (node && pos) {
-        node.position.x = pos.x;
-        node.position.y = pos.y;
-        markDirty(); // Use dirty flag instead of direct render
+        sceneModel.moveNode(node.id, pos);
       }
     });
+
     manager.on('dragEnd', () => {
-      console.log('dragEnd event received');
-      lastDraggedNode = null;
+
+      setDraggedNode(null);
       canvas.style.cursor = '';
     });
 
-    // ZOOM (Wheel) Event
+    manager.on('panStart', ({ start }) => {
+
+      canvas.style.cursor = 'grabbing';
+    });
+
+    manager.on('pan', ({ pos, start }) => {
+
+      if (start) {
+        const dx = pos.x - start.x;
+        const dy = pos.y - start.y;
+        sceneModel.panBy(-dx, -dy);
+      }
+    });
+
+    manager.on('panEnd', () => {
+
+      canvas.style.cursor = '';
+    });
+
+    // 8. Handle zoom (direct wheel event)
     const wheelHandler = (e) => {
       e.preventDefault();
       const rect = canvas.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
       const mouseY = e.clientY - rect.top;
       const zoomFactor = e.deltaY < 0 ? 1.08 : 1 / 1.08;
-      camera.zoomTo(camera.zoom * zoomFactor, mouseX, mouseY);
-      markDirty(); // Use dirty flag instead of direct render
+      sceneModel.zoomTo(camera.zoom * zoomFactor, mouseX, mouseY);
     };
     canvas.addEventListener('wheel', wheelHandler, { passive: false });
 
+    // 8.5. Handle keyboard panning (for testing)
+    const keyHandler = (e) => {
+      const panSpeed = 50; // pixels per key press
+      switch(e.key) {
+        case 'ArrowLeft':
+          e.preventDefault();
+          sceneModel.panBy(panSpeed, 0);
+
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          sceneModel.panBy(-panSpeed, 0);
+
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          sceneModel.panBy(0, panSpeed);
+
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          sceneModel.panBy(0, -panSpeed);
+
+          break;
+        case ' ':
+          e.preventDefault();
+
+
+
+
+          break;
+      }
+    };
+    window.addEventListener('keydown', keyHandler);
+
+    // 9. Handle resize
     const handleResize = () => {
       const box = canvas.parentElement ?? canvas;
       const rect = box.getBoundingClientRect();
@@ -173,24 +171,52 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
       const nextH = Math.max(1, Math.floor(rect.height || canvas.clientHeight || canvas.height));
       canvas.width = nextW;
       canvas.height = nextH;
-      renderer.setViewportSize(canvas.width, canvas.height);
-      markDirty(); // Use dirty flag for resize
+      sceneModel.setViewportSize(canvas.width, canvas.height);
     };
     handleResize();
     const ro = new ResizeObserver(handleResize);
     ro.observe(canvas.parentElement ?? canvas);
 
+    // 10. Initial scene setup
+    const nodesArr = [...graph.nodes.values()];
+    if (nodesArr.length > 0) {
+      const left = Math.min(...nodesArr.map(n => (n.position?.x ?? 0) - (n.width ?? 300) / 2));
+      const right = Math.max(...nodesArr.map(n => (n.position?.x ?? 0) + (n.width ?? 300) / 2));
+      const top = Math.min(...nodesArr.map(n => (n.position?.y ?? 0) - (n.height ?? 100) / 2));
+      const bottom = Math.max(...nodesArr.map(n => (n.position?.y ?? 0) + (n.height ?? 100) / 2));
+      camera.fitWorldRect({ left, top, right, bottom }, 32);
+    }
+
+    // Set initial graph and background
+    sceneModel.updateGraph(graph);
+    sceneModel.setNodeWidth(nodeWidth);
+    
+    const bgHex = source?.style?.['background-color'] || source?.style?.backgroundColor;
+    const bg = bgHex ? [...hexToRgbNorm(bgHex), 1] : undefined;
+    if (bg) {
+      sceneModel.setBackground(bg);
+      renderer.render(bg); // Initial render with background
+    } else {
+      drawLoop.markDirty(); // Mark dirty for initial render
+    }
+
+    // 11. Start the draw loop
+    drawLoop.start();
+
+    // 12. Cleanup
     return () => {
       ro.disconnect();
       canvas.removeEventListener('wheel', wheelHandler);
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-      }
-      managerRef.current?.destroy?.();
+      window.removeEventListener('keydown', keyHandler);
+      drawLoop.stop();
+      manager?.destroy?.();
+      renderer?.dispose?.();
+      // Clear refs
       managerRef.current = null;
-      rendererRef.current?.dispose?.();
       rendererRef.current = null;
       cameraRef.current = null;
+      sceneModelRef.current = null;
+      drawLoopRef.current = null;
     };
   }, [graphData, nodeWidth]);
 
@@ -203,5 +229,3 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
     />
   );
 }
-
-

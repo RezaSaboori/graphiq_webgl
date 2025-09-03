@@ -6,7 +6,7 @@ export class SimpleSpatialIndex {
   // nodes: iterable of { id, position:{x,y}, width, height }
   rebuild(nodesIterable) {
     this.nodes = Array.isArray(nodesIterable) ? nodesIterable : [...nodesIterable];
-    console.log('SpatialIndex rebuild:', { nodeCount: this.nodes.length, nodes: this.nodes.map(n => ({ id: n.id, position: n.position, width: n.width, height: n.height })) });
+
   }
   // point: {x, y} in world coords
   queryPoint(point) {
@@ -22,7 +22,7 @@ export class SimpleSpatialIndex {
         point.y <= node.position.y + halfH
       );
       if (isInside) {
-        console.log('Hit node:', node.id, 'at world pos:', point);
+
         return { type: 'node', node };
       }
     }
