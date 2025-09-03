@@ -94,7 +94,9 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
     return () => {
       ro.disconnect();
       managerRef.current?.destroy?.();
+      managerRef.current = null;
       rendererRef.current?.dispose?.();
+      rendererRef.current = null;
     };
   }, [graphData, nodeWidth]);
 

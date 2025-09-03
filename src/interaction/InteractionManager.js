@@ -41,7 +41,10 @@ function createInteractionMachine(context = {}) {
     }
   }, {
     guards: {
-      onNode: (ctx, evt) => !!evt.target?.type && evt.target.type === 'node'
+      onNode: (_ctx, evt) => {
+        if (!evt || !evt.target) return false;
+        return evt.target.type === 'node';
+      }
     },
     actions: {
       setStart: assign((ctx, evt) => ({ ...ctx, start: evt.world, node: evt.target?.node })),
@@ -72,6 +75,7 @@ export class InteractionManager {
     this.onPointerDown = this.onPointerDown.bind(this);
     this.onPointerMove = this.onPointerMove.bind(this);
     this.onPointerUp = this.onPointerUp.bind(this);
+    this._destroyed = false;
 
     canvas.addEventListener('pointerdown', this.onPointerDown);
     canvas.addEventListener('pointermove', this.onPointerMove);
@@ -82,18 +86,28 @@ export class InteractionManager {
     this.canvas.removeEventListener('pointermove', this.onPointerMove);
     window.removeEventListener('pointerup', this.onPointerUp);
     this.service.stop();
+    this._destroyed = true;
   }
   onPointerDown(e) {
+    if (this._destroyed) return;
     const world = this.camera.screenToWorld(e.offsetX, e.offsetY);
-    const target = this.spatialIndex.queryPoint(world) || null;
+    let target = null;
+    try {
+      target = this.spatialIndex?.queryPoint?.(world) || null;
+    } catch (_) { target = null; }
     this.service.send({ type: 'POINTER_DOWN', world, target, originalEvent: e });
   }
   onPointerMove(e) {
+    if (this._destroyed) return;
     const world = this.camera.screenToWorld(e.offsetX, e.offsetY);
-    const target = this.spatialIndex.queryPoint(world) || null;
+    let target = null;
+    try {
+      target = this.spatialIndex?.queryPoint?.(world) || null;
+    } catch (_) { target = null; }
     this.service.send({ type: 'POINTER_MOVE', world, target, originalEvent: e });
   }
   onPointerUp(e) {
+    if (this._destroyed) return;
     const world = this.camera.screenToWorld(e.offsetX, e.offsetY);
     this.service.send({ type: 'POINTER_UP', world, target: null, originalEvent: e });
   }
