@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Camera } from '../utils/camera';
 import { InteractionManager } from '../interaction/InteractionManager';
 import { SimpleSpatialIndex } from '../interaction/SimpleSpatialIndex';
@@ -14,9 +14,6 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
   const cameraRef = useRef(null);
   const sceneModelRef = useRef(null);
   const drawLoopRef = useRef(null);
-
-  // React state only for UI overlays, not scene state
-  const [draggedNode, setDraggedNode] = useState(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -80,21 +77,21 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
 
     // 7. Wire FSM events to scene model (FSM-driven updates)
     manager.on('dragStart', ({ node }) => {
-
-      setDraggedNode(node?.id ?? null);
+      // All drag state is managed in SceneModel, not React
+      if (node) {
+        sceneModel.setDraggedNode(node.id);
+      }
       canvas.style.cursor = 'move';
     });
 
     manager.on('drag', ({ node, pos }) => {
-
       if (node && pos) {
         sceneModel.moveNode(node.id, pos);
       }
     });
 
     manager.on('dragEnd', () => {
-
-      setDraggedNode(null);
+      sceneModel.clearDraggedNode();
       canvas.style.cursor = '';
     });
 

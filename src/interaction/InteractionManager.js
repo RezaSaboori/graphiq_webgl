@@ -53,7 +53,6 @@ function createInteractionMachine(context = {}) {
     },
     actions: {
       setStart: assign((ctx, evt) => {
-
         if (!evt) return { ...ctx, start: null, node: null, eventBus: eventBus };
         return { ...ctx, start: evt?.world ?? null, node: evt?.target?.node, eventBus: eventBus, lastEvent: evt };
       }),
@@ -63,7 +62,6 @@ function createInteractionMachine(context = {}) {
         return { ...ctx, lastEvent: evt, eventBus: eventBus };
       }),
       notifyDragStart: ctx => { 
-
         if (eventBus?.emit) eventBus.emit('dragStart', ctx);
       },
       dragNode: (ctx, evt) => {
@@ -133,7 +131,6 @@ export class InteractionManager {
       target = this.spatialIndex?.queryPoint?.(world) || null;
     } catch (_) { target = null; }
 
-
     this.service.send({ type: 'POINTER_DOWN', world, target, originalEvent: e });
   }
   onPointerMove(e) {
@@ -146,7 +143,6 @@ export class InteractionManager {
     try {
       target = this.spatialIndex?.queryPoint?.(world) || null;
     } catch (_) { target = null; }
-
 
     this.service.send({ type: 'POINTER_MOVE', world, target, originalEvent: e });
   }
