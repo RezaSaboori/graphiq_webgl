@@ -2,6 +2,7 @@ import nodeVertSrc from './shaders/node.vert?raw';
 import nodeFragSrc from './shaders/node.frag?raw';
 import bgFragSrc from './shaders/background.frag?raw';
 import { InstancedNodeRenderer } from './InstancedNodeRenderer';
+import { InstancedEdgeRenderer } from './InstancedEdgeRenderer';
 
 
 // Utility to compile shaders/programs
@@ -40,6 +41,7 @@ export class NodeGraphRenderer {
         this.camera = camera;
 
         this.instancedRenderer = new InstancedNodeRenderer(gl, camera);
+        this.edgeRenderer = new InstancedEdgeRenderer(gl, camera);
         this.init();
     }
     init() {
@@ -104,18 +106,28 @@ export class NodeGraphRenderer {
         gl.disableVertexAttribArray(aPos);
     }
 
-    render(nodes = [], bgColor = [0.12, 0.12, 0.13, 1]) {
+    render(nodesParam = [], bgColor = [0.12, 0.12, 0.13, 1]) {
         const gl = this.gl;
         gl.clear(gl.COLOR_BUFFER_BIT);
 
         this.drawBackground(bgColor);
 
-        // === NEW: Instanced rendering for all nodes ===
+        // === NEW: Instanced rendering for edges then nodes ===
         const { viewportWidth:w, viewportHeight:h, zoom, x, y } = this.camera;
         const sx = 2/(w/zoom), sy = 2/(h/zoom), tx = -sx*x-1, ty = -sy*y-1;
         const mat3 = new Float32Array([sx,0,0, 0,sy,0, tx,ty,1]);
 
-        this.instancedRenderer.updateNodes(nodes);
+        // Edges first (if graph available)
+        if (this.graph && this.edgeRenderer) {
+            const nodes = [...this.graph.nodes.values()];
+            const edges = [...this.graph.edges.values()];
+            const nodeMap = this.graph.nodes;
+            this.edgeRenderer.updateEdges(edges, nodeMap);
+            this.edgeRenderer.render(mat3);
+            this.instancedRenderer.updateNodes(nodes);
+        } else {
+            this.instancedRenderer.updateNodes(nodesParam);
+        }
         this.instancedRenderer.render(mat3);
     }
 }

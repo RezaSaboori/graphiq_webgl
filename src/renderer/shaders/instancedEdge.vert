@@ -1,14 +1,15 @@
 #version 300 es
 precision highp float;
 
-in vec2 a_start;       // Edge start position (world)
-in vec2 a_end;         // Edge end position (world)
-in vec4 a_color;       // Per-edge color
+in vec2 a_start; // Edge start position (world)
+in vec2 a_end;   // Edge end position (world)
+in vec4 a_color; // Per-edge color
+
+// Each edge instance: two vertices (start-end). Use gl_InstanceID.
 uniform mat3 u_worldToScreen;
 out vec4 v_color;
-
 void main() {
-  // Each edge instance: two vertices (start-end). Use gl_VertexID.
+  // Each instance is an edge, each edge is two vertices: 0=start, 1=end
   vec2 pos = (gl_VertexID == 0) ? a_start : a_end;
   vec3 screenPos = u_worldToScreen * vec3(pos, 1.0);
   gl_Position = vec4(screenPos.xy, 0, 1);
