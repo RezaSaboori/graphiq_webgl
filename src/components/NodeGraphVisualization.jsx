@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Camera } from '../utils/camera';
 import { InteractionManager } from '../interaction/InteractionManager';
 import { SimpleSpatialIndex } from '../interaction/SimpleSpatialIndex';
-import { NodeGraphRenderer } from '../renderer/NodeGraphRenderer';
+import { NodeGraphRenderer, hexToRgbNorm } from '../renderer/NodeGraphRenderer';
 import { Graph } from '../graph/Graph';
 
 export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
@@ -25,25 +25,31 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
 
     // Ensure we always operate on a Graph instance
     let graph;
-    if (graphData instanceof Graph) {
+    // Support various shapes: Graph instance, {nodes, edges}, or {graph:{nodes,relationships}}
+    const source = graphData?.graph ? graphData.graph : graphData;
+    if (source instanceof Graph) {
+      graph = source;
+    } else if (graphData instanceof Graph) {
       graph = graphData;
     } else {
       graph = new Graph();
       // ingest nodes
-      if (Array.isArray(graphData?.nodes)) {
-        for (const node of graphData.nodes) graph.addNode(node);
-      } else if (graphData?.nodes && typeof graphData.nodes.values === 'function') {
-        for (const node of graphData.nodes.values()) graph.addNode(node);
-      } else if (graphData?.nodes && typeof graphData.nodes === 'object') {
-        for (const node of Object.values(graphData.nodes)) graph.addNode(node);
+      const nodesInput = source?.nodes;
+      if (Array.isArray(nodesInput)) {
+        for (const node of nodesInput) graph.addNode(node);
+      } else if (nodesInput && typeof nodesInput.values === 'function') {
+        for (const node of nodesInput.values()) graph.addNode(node);
+      } else if (nodesInput && typeof nodesInput === 'object') {
+        for (const node of Object.values(nodesInput)) graph.addNode(node);
       }
       // ingest edges
-      if (Array.isArray(graphData?.edges)) {
-        for (const edge of graphData.edges) graph.addEdge(edge);
-      } else if (graphData?.edges && typeof graphData.edges.values === 'function') {
-        for (const edge of graphData.edges.values()) graph.addEdge(edge);
-      } else if (graphData?.edges && typeof graphData.edges === 'object') {
-        for (const edge of Object.values(graphData.edges)) graph.addEdge(edge);
+      const edgesInput = source?.edges ?? source?.relationships;
+      if (Array.isArray(edgesInput)) {
+        for (const edge of edgesInput) graph.addEdge(edge);
+      } else if (edgesInput && typeof edgesInput.values === 'function') {
+        for (const edge of edgesInput.values()) graph.addEdge(edge);
+      } else if (edgesInput && typeof edgesInput === 'object') {
+        for (const edge of Object.values(edgesInput)) graph.addEdge(edge);
       }
     }
 
@@ -51,7 +57,20 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
 
     const renderer = new NodeGraphRenderer(gl, canvas, camera);
     rendererRef.current = renderer;
+    // Initial fit to content if available
+    const nodesArr = [...graph.nodes.values()];
+    if (nodesArr.length > 0) {
+      const left = Math.min(...nodesArr.map(n => (n.position?.x ?? 0) - (n.width ?? 300) / 2));
+      const right = Math.max(...nodesArr.map(n => (n.position?.x ?? 0) + (n.width ?? 300) / 2));
+      const top = Math.min(...nodesArr.map(n => (n.position?.y ?? 0) - (n.height ?? 100) / 2));
+      const bottom = Math.max(...nodesArr.map(n => (n.position?.y ?? 0) + (n.height ?? 100) / 2));
+      camera.fitWorldRect({ left, top, right, bottom }, 32);
+    }
     rendererRef.current.updateGraph(graph, { selectedNodes, nodeWidth });
+    // Background color from data if present
+    const bgHex = source?.style?.['background-color'] || source?.style?.backgroundColor;
+    const bg = bgHex ? [...hexToRgbNorm(bgHex), 1] : undefined;
+    if (bg) rendererRef.current.render(bg); else rendererRef.current.render();
 
     // FSM + manager
     const manager = new InteractionManager(canvas, camera, spatial);
@@ -81,15 +100,18 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
     });
 
     const handleResize = () => {
-      const rect = canvas.getBoundingClientRect();
-      canvas.width = Math.max(1, Math.floor(rect.width));
-      canvas.height = Math.max(1, Math.floor(rect.height));
+      const box = canvas.parentElement ?? canvas;
+      const rect = box.getBoundingClientRect();
+      const nextW = Math.max(1, Math.floor(rect.width || canvas.clientWidth || canvas.width));
+      const nextH = Math.max(1, Math.floor(rect.height || canvas.clientHeight || canvas.height));
+      canvas.width = nextW;
+      canvas.height = nextH;
       renderer.setViewportSize(canvas.width, canvas.height);
       renderer.render();
     };
     handleResize();
     const ro = new ResizeObserver(handleResize);
-    ro.observe(canvas);
+    ro.observe(canvas.parentElement ?? canvas);
 
     return () => {
       ro.disconnect();

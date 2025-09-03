@@ -44,6 +44,10 @@ export class NodeGraphRenderer {
         this.instancedRenderer = new InstancedNodeRenderer(gl, camera);
         this.edgeRenderer = new InstancedEdgeRenderer(gl, camera);
         this.init();
+        // Ensure initial viewport matches canvas
+        if (this.canvas?.width && this.canvas?.height) {
+            this.setViewportSize(this.canvas.width, this.canvas.height);
+        }
     }
     init() {
         const gl = this.gl;
@@ -111,6 +115,7 @@ export class NodeGraphRenderer {
         if (!this.camera) return; // Prevent crashing if camera isn't ready
 
         const gl = this.gl;
+        gl.clearColor(bgColor[0], bgColor[1], bgColor[2], bgColor[3]);
         gl.clear(gl.COLOR_BUFFER_BIT);
 
         this.drawBackground(bgColor);

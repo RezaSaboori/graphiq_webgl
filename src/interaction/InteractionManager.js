@@ -48,24 +48,24 @@ function createInteractionMachine(context = {}) {
     },
     actions: {
       setStart: assign((ctx, evt) => {
-        if (!evt) return { ...ctx, start: null, node: null };
-        return { ...ctx, start: evt?.world ?? null, node: evt?.target?.node };
+        if (!evt) return { ...ctx, start: null, node: null, eventBus: ctx.eventBus };
+        return { ...ctx, start: evt?.world ?? null, node: evt?.target?.node, eventBus: ctx.eventBus };
       }),
-      clearTemp: assign(_ => ({ start: undefined, node: undefined })),
-      notifyDragStart: ctx => ctx.eventBus.emit('dragStart', ctx),
+      clearTemp: assign(ctx => ({ ...ctx, start: undefined, node: undefined, eventBus: ctx.eventBus })),
+      notifyDragStart: ctx => { if (ctx?.eventBus?.emit) ctx.eventBus.emit('dragStart', ctx); },
       dragNode: (ctx, evt) => {
         if (!evt || !evt.world) return;
-        ctx.eventBus.emit('drag', { ...ctx, pos: evt.world });
+        if (ctx?.eventBus?.emit) ctx.eventBus.emit('drag', { ...ctx, pos: evt.world });
       },
       notifyDrag: ctx => {},
-      finishDrag: ctx => ctx.eventBus.emit('dragEnd', ctx),
+      finishDrag: ctx => { if (ctx?.eventBus?.emit) ctx.eventBus.emit('dragEnd', ctx); },
       notifyDragEnd: ctx => {},
-      notifyPanStart: ctx => ctx.eventBus.emit('panStart', ctx),
+      notifyPanStart: ctx => { if (ctx?.eventBus?.emit) ctx.eventBus.emit('panStart', ctx); },
       updatePan: (ctx, evt) => {
         if (!evt || !evt.world) return;
-        ctx.eventBus.emit('pan', { ...ctx, pos: evt.world });
+        if (ctx?.eventBus?.emit) ctx.eventBus.emit('pan', { ...ctx, pos: evt.world });
       },
-      finishPan: ctx => ctx.eventBus.emit('panEnd', ctx),
+      finishPan: ctx => { if (ctx?.eventBus?.emit) ctx.eventBus.emit('panEnd', ctx); },
       notifyPanEnd: ctx => {},
     }
   });
