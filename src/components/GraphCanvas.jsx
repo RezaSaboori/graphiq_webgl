@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useCallback, forwardRef } from 'react';
 import { useWebGLRenderer } from '../hooks/useWebGLRenderer';
 import { useCanvasResize } from '../hooks/useCanvasResize';
+import { useCanvasInteraction } from '../hooks/useCanvasInteraction';
 
 const GraphCanvas = forwardRef(({
     graph,
@@ -17,9 +18,17 @@ const GraphCanvas = forwardRef(({
     const containerRef = useRef(null);
     
     // Custom hook for WebGL setup and rendering
-    const { renderer, updateState, handleInteraction, updateViewport } = useWebGLRenderer({
+    const {
+        camera: hookCamera,
+        setCamera,
+        isInteracting: hookIsInteracting,
+        interactionMode: hookInteractionMode,
+        pointerHandlers
+    } = useCanvasInteraction(canvasRef);
+
+    const { renderer, updateState, updateViewport } = useWebGLRenderer({
         canvasRef,
-        camera,
+        camera: hookCamera ?? camera,
         graph
     });
 
@@ -45,18 +54,33 @@ const GraphCanvas = forwardRef(({
         }
     }, [renderer, canvasSize, updateViewport]);
 
-    // Handle canvas interactions
+    // Unified pointer/mouse/wheel handler → forwards to renderer with screen/world coords
     const handleCanvasInteraction = useCallback((event) => {
-        if (!renderer) return;
-        
-        const result = handleInteraction(event);
-        
-        if (result?.type === 'node') {
-        onNodeSelect?.(result.nodeId, result.data);
-        } else if (result?.type === 'edge') {
-        onEdgeSelect?.(result.edgeId, result.data);
+        if (!renderer || !hookCamera) return;
+
+        const rect = canvasRef.current.getBoundingClientRect();
+        const screenX = event.clientX - rect.left;
+        const screenY = event.clientY - rect.top;
+        const world = hookCamera.screenToWorld(screenX, screenY);
+
+        if (renderer.handleInteraction) {
+            renderer.handleInteraction(event.type, {
+                screen: { x: screenX, y: screenY },
+                world: { x: world.x, y: world.y },
+                button: event.button,
+                event
+            });
         }
-    }, [renderer, onNodeSelect, onEdgeSelect]);
+    }, [renderer, hookCamera]);
+
+    // Combine pointer state handlers with unified forwarding to renderer
+    const combinedHandlers = {
+        onPointerDown: (e) => { pointerHandlers.onPointerDown?.(e); handleCanvasInteraction(e); },
+        onPointerMove: (e) => { pointerHandlers.onPointerMove?.(e); handleCanvasInteraction(e); },
+        onPointerUp: (e) => { pointerHandlers.onPointerUp?.(e); handleCanvasInteraction(e); },
+        onPointerLeave: (e) => { pointerHandlers.onPointerLeave?.(e); handleCanvasInteraction(e); },
+        onWheel: (e) => { pointerHandlers.onWheel?.(e); handleCanvasInteraction(e); }
+    };
 
     return (
         <div 
@@ -77,15 +101,13 @@ const GraphCanvas = forwardRef(({
             }}
             width={canvasSize.width}
             height={canvasSize.height}
-            onClick={handleCanvasInteraction}
-            onMouseDown={handleCanvasInteraction}
-            onMouseMove={handleCanvasInteraction}
-            onWheel={handleCanvasInteraction}
+            {...combinedHandlers}
+            tabIndex={0}
             style={{
             display: 'block',
             width: '100%',
             height: '100%',
-            cursor: isInteracting ? 'grabbing' : interactionMode === 'pan' ? 'grab' : 'crosshair'
+            cursor: (hookIsInteracting ?? isInteracting) ? 'grabbing' : (hookInteractionMode ?? interactionMode) === 'pan' ? 'grab' : 'crosshair'
             }}
         />
         </div>

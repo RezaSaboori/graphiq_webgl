@@ -1,153 +1,88 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Camera } from '../utils/camera';
 
-// Utility function to calculate bounding box of nodes
-const calculateNodeBounds = (nodes) => {
-    if (!nodes || nodes.length === 0) {
-        return { minX: 0, minY: 0, maxX: 100, maxY: 100 };
-    }
-    
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    
-    nodes.forEach(node => {
-        if (node.position) {
-            const x = node.position.x;
-            const y = node.position.y;
-            const width = node.width || 300;
-            const height = node.height || 100;
-            
-            minX = Math.min(minX, x - width / 2);
-            minY = Math.min(minY, y - height / 2);
-            maxX = Math.max(maxX, x + width / 2);
-            maxY = Math.max(maxY, y + height / 2);
-        }
-    });
-    
-    return { minX, minY, maxX, maxY };
-};
-
-// Utility function for smooth camera animation
-const animateCameraTo = (camera, target) => {
-    // Simple implementation - could be enhanced with proper animation
-    camera.x = target.x;
-    camera.y = target.y;
-};
-
-export const useCanvasInteraction = (canvasRef) => {
-    const [camera, setCamera] = useState(null);
+export const useCanvasInteraction = (canvasRef, initialCamera = null) => {
+    const [camera, setCamera] = useState(initialCamera);
     const [isInteracting, setIsInteracting] = useState(false);
-    const [interactionMode, setInteractionMode] = useState('select'); // 'select', 'pan', 'zoom'
-    const lastInteractionRef = useRef({ x: 0, y: 0 });
+    const [interactionMode, setInteractionMode] = useState('select');
+    const [activePointer, setActivePointer] = useState(null);
 
-    // Initialize camera when canvas is ready
     useEffect(() => {
         if (!canvasRef?.current) return;
-        
         const canvas = canvasRef.current;
-        const newCamera = new Camera({
-            viewportWidth: canvas.width || canvas.clientWidth || window.innerWidth,
-            viewportHeight: canvas.height || canvas.clientHeight || window.innerHeight,
+        const newCamera = camera ?? new Camera({
+            viewportWidth: canvas.width || canvas.clientWidth,
+            viewportHeight: canvas.height || canvas.clientHeight,
             zoom: 1
         });
-        
-        console.log('Camera initialized:', {
-            viewportWidth: newCamera.viewportWidth,
-            viewportHeight: newCamera.viewportHeight,
-            zoom: newCamera.zoom
-        });
-        
         setCamera(newCamera);
+        // Do NOT add canvas event listeners here (handled in component).
     }, [canvasRef]);
 
-    const panTo = useCallback((x, y, smooth = false) => {
-        setCamera(prev => {
-        // Create a new Camera instance instead of spreading the object
-        const newCamera = new Camera({
-            x: prev.x,
-            y: prev.y,
-            zoom: prev.zoom,
-            viewportWidth: prev.viewportWidth,
-            viewportHeight: prev.viewportHeight
-        });
-        if (smooth) {
-            // Implement smooth panning with animation
-            animateCameraTo(newCamera, { x, y });
-        } else {
-            newCamera.x = x;
-            newCamera.y = y;
+    // Pan/Drag state
+    const lastPointer = useRef(null);
+    const mode = useRef('idle');
+
+    const onPointerDown = (e) => {
+        if (e.button === 1 || (e.button === 0 && e.ctrlKey)) {
+            // Middle click OR ctrl+left: pan mode
+            setInteractionMode('pan');
+            setIsInteracting(true);
+            mode.current = 'panning';
+            lastPointer.current = { x: e.clientX, y: e.clientY };
+        } else if (e.button === 0) {
+            setInteractionMode('select');
+            setIsInteracting(true);
+            mode.current = 'selecting';
+            lastPointer.current = { x: e.clientX, y: e.clientY };
         }
-        return newCamera;
-        });
-    }, []);
+        setActivePointer({ x: e.clientX, y: e.clientY, button: e.button });
+    };
 
-    const zoomTo = useCallback((zoom, centerX, centerY, smooth = false) => {
-        setCamera(prev => {
-        // Create a new Camera instance instead of spreading the object
-        const newCamera = new Camera({
-            x: prev.x,
-            y: prev.y,
-            zoom: prev.zoom,
-            viewportWidth: prev.viewportWidth,
-            viewportHeight: prev.viewportHeight
-        });
-        if (centerX !== undefined && centerY !== undefined) {
-            newCamera.zoomTo(zoom, centerX, centerY);
-        } else {
-            newCamera.zoom = Math.max(0.1, Math.min(5.0, zoom));
+    const onPointerMove = (e) => {
+        if (!isInteracting) return;
+        if (mode.current === 'panning') {
+            const dx = (e.clientX - lastPointer.current.x) / camera.zoom;
+            const dy = (e.clientY - lastPointer.current.y) / camera.zoom;
+            camera.panBy(-dx, -dy);
+            lastPointer.current = { x: e.clientX, y: e.clientY };
+            setCamera(new Camera({ ...camera }));
         }
-        return newCamera;
-        });
-    }, []);
+        // Add drag logic here for selecting nodes, if needed.
+    };
 
-    const fitToView = useCallback((nodes) => {
-        if (!nodes || nodes.length === 0) return;
-        
-        // Calculate bounding box of all nodes
-        const bounds = calculateNodeBounds(nodes);
-        const padding = 50;
-        
-        setCamera(prev => {
-        // Create a new Camera instance instead of spreading the object
-        const newCamera = new Camera({
-            x: prev.x,
-            y: prev.y,
-            zoom: prev.zoom,
-            viewportWidth: prev.viewportWidth,
-            viewportHeight: prev.viewportHeight
-        });
-        newCamera.fitWorldRect({
-            left: bounds.minX,
-            top: bounds.minY,
-            right: bounds.maxX,
-            bottom: bounds.maxY
-        }, padding);
-        return newCamera;
-        });
-    }, []);
+    const onPointerUp = (e) => {
+        setIsInteracting(false);
+        setInteractionMode('select');
+        mode.current = 'idle';
+        setActivePointer(null);
+    };
 
-    const resetView = useCallback(() => {
-        setCamera(prev => {
-        // Create a new Camera instance instead of spreading the object
-        const newCamera = new Camera({
-            x: 0,
-            y: 0,
-            zoom: 1,
-            viewportWidth: prev.viewportWidth,
-            viewportHeight: prev.viewportHeight
-        });
-        return newCamera;
-        });
-    }, []);
+    const onWheel = (e) => {
+        if (!camera) return;
+        e.preventDefault();
+        const factor = Math.pow(0.95, e.deltaY); // smooth zoom
+        let newZoom = camera.zoom * factor;
+        newZoom = Math.max(0.05, Math.min(5.0, newZoom));
+        const rect = canvasRef.current.getBoundingClientRect();
+        const centerX = e.clientX - rect.left;
+        const centerY = e.clientY - rect.top;
+        camera.zoomTo(newZoom, centerX, centerY);
+        setCamera(new Camera({ ...camera }));
+    };
 
     return {
         camera,
+        setCamera,
         isInteracting,
         interactionMode,
-        panTo,
-        zoomTo,
-        fitToView,
-        resetView,
         setInteractionMode,
-        setIsInteracting
+        pointerHandlers: {
+            onPointerDown,
+            onPointerMove,
+            onPointerUp,
+            onPointerLeave: onPointerUp,
+            onWheel,
+        }
     };
 };

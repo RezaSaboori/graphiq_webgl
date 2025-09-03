@@ -39,6 +39,7 @@ export class NodeGraphRenderer {
         this.gl = gl;
         this.canvas = canvas;
         this.camera = camera;
+        this.selectedNodeId = null;
 
         this.instancedRenderer = new InstancedNodeRenderer(gl, camera);
         this.edgeRenderer = new InstancedEdgeRenderer(gl, camera);
@@ -129,5 +130,44 @@ export class NodeGraphRenderer {
             this.instancedRenderer.updateNodes(nodes);
         }
         this.instancedRenderer.render(mat3);
+    }
+
+    // Basic axis-aligned bounding-box hit test in world space
+    hitTestNode(worldX, worldY) {
+        if (!this.graph || !this.graph.nodes) return null;
+        for (const node of this.graph.nodes.values()) {
+            const halfWidth = (node.width || 300) / 2;
+            const halfHeight = (node.height || 100) / 2;
+            if (
+                worldX >= node.position.x - halfWidth &&
+                worldX <= node.position.x + halfWidth &&
+                worldY >= node.position.y - halfHeight &&
+                worldY <= node.position.y + halfHeight
+            ) {
+                return node;
+            }
+        }
+        return null;
+    }
+
+    // Unified interaction handler called from React component
+    handleInteraction(type, { screen, world, button, event }) {
+        if (type === 'pointerdown') {
+            const hitNode = this.hitTestNode(world.x, world.y);
+            if (hitNode) {
+                this.selectedNodeId = hitNode.id;
+            }
+        }
+        if (type === 'pointermove' && event?.buttons === 1 && this.selectedNodeId) {
+            const node = this.graph?.nodes?.get(this.selectedNodeId);
+            if (node) {
+                node.position.x = world.x;
+                node.position.y = world.y;
+                this.dirty = true;
+            }
+        }
+        if (type === 'pointerup' && this.selectedNodeId) {
+            this.selectedNodeId = null;
+        }
     }
 }
