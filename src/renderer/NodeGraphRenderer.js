@@ -132,6 +132,12 @@ export class NodeGraphRenderer {
         this.instancedRenderer.render(mat3);
     }
 
+    updateGraph(graph, opts) {
+        this.graph = graph;
+        // opts may include selection, sizing, etc. For now, just cause a redraw.
+        this.render();
+    }
+
     // Basic axis-aligned bounding-box hit test in world space
     hitTestNode(worldX, worldY) {
         if (!this.graph || !this.graph.nodes) return null;

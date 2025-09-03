@@ -1,5 +1,5 @@
 import React from "react";
-import GraphVisualization from "./components/GraphVisualization";
+import NodeGraphVisualization from "./components/NodeGraphVisualization";
 import data from "./data/data.json";
 import "./App.css";
 
@@ -18,10 +18,8 @@ function App() {
         <h1>GraphIQ - Medical Data Visualization</h1>
       </header>
       <main className="app-main" style={{height: "calc(100vh - 60px)", position: "relative", width: "100%"}}>
-        <GraphVisualization 
-          initialData={data}
-          onNodeSelect={handleNodeSelect}
-          onEdgeSelect={handleEdgeSelect}
+        <NodeGraphVisualization 
+          graphData={data}
         />
       </main>
     </div>
