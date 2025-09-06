@@ -5,6 +5,7 @@ import { NodeGraphRenderer, hexToRgbNorm } from '../renderer/NodeGraphRenderer';
 import { Graph } from '../graph/Graph';
 import { SceneModel } from '../scene/SceneModel';
 import { DrawLoop } from '../scene/DrawLoop';
+import { Camera } from '../scene/Camera';
 
 export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
   const canvasRef = useRef(null);
@@ -53,25 +54,30 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
       }
     }
 
-    // 3. Setup renderer and draw loop
+    // 3. Setup camera system
+    const camera = new Camera(canvas.width, canvas.height);
+    
+    // 4. Setup renderer and draw loop
     const renderer = new NodeGraphRenderer(gl, canvas);
     rendererRef.current = renderer;
+    renderer.camera = camera; // Save reference for renderer
     
     const drawLoop = new DrawLoop(renderer);
     drawLoopRef.current = drawLoop;
 
-    // 4. Create scene model (centralized state management)
+    // 5. Create scene model (centralized state management)
     const sceneModel = new SceneModel(graph, spatial, renderer, () => drawLoop.markDirty());
     sceneModelRef.current = sceneModel;
+    sceneModel.camera = camera; // Make camera accessible for pan/zoom/fit
 
-    // 5. Initialize spatial index
+    // 6. Initialize spatial index
     spatial.rebuild([...graph.nodes.values()]);
 
-    // 6. Setup interaction manager
-    const manager = new InteractionManager(canvas, spatial);
+    // 7. Setup interaction manager
+    const manager = new InteractionManager(canvas, spatial, camera);
     managerRef.current = manager;
 
-    // 7. Wire FSM events to scene model (FSM-driven updates)
+    // 8. Wire FSM events to scene model (FSM-driven updates)
     manager.on('dragStart', ({ node }) => {
       // All drag state is managed in SceneModel, not React
       if (node) {
@@ -80,9 +86,9 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
       canvas.style.cursor = 'move';
     });
 
-    manager.on('drag', ({ node, pos }) => {
-      if (node && pos) {
-        sceneModel.moveNode(node.id, pos);
+    manager.on('drag', ({ node, world }) => {
+      if (node && world) {
+        sceneModel.moveNode(node.id, world);
       }
     });
 
@@ -101,12 +107,16 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
       const nextH = Math.max(1, Math.floor(rect.height || canvas.clientHeight || canvas.height));
       canvas.width = nextW;
       canvas.height = nextH;
+      camera.setViewportSize(canvas.width, canvas.height);
     };
     handleResize();
     const ro = new ResizeObserver(handleResize);
     ro.observe(canvas.parentElement ?? canvas);
 
     // 10. Initial scene setup
+    // Center on origin and zoom=1 on initial load
+    camera.setCenter(0, 0);
+    camera.setZoom(1.0);
 
     // Set initial graph and background
     sceneModel.updateGraph(graph);
@@ -141,8 +151,6 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
   return (
     <canvas
       ref={canvasRef}
-      width={1920}
-      height={1080}
       style={{ 
         width: '100%', 
         height: '100%', 

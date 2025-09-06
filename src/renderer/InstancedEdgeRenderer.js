@@ -89,12 +89,18 @@ export class InstancedEdgeRenderer {
     this.dirty = false;
   }
 
-  render(identityMatrix) {
+  render(viewProjectionMatrix) {
     const gl = this.gl;
     if (this.edgeCount === 0) return;
     if (this.dirty) this.uploadInstanceBuffers();
 
     gl.useProgram(this.program);
+
+    // Set the viewProjection matrix uniform
+    const uViewProjectionLoc = gl.getUniformLocation(this.program, 'u_viewProjectionMatrix');
+    if (uViewProjectionLoc) {
+      gl.uniformMatrix4fv(uViewProjectionLoc, false, viewProjectionMatrix);
+    }
 
     // Per-instance attrib setup
     const bind = (buffer, attrib, comps) => {

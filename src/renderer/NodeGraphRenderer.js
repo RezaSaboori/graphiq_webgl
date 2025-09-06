@@ -69,6 +69,7 @@ export class NodeGraphRenderer {
         this.a_screen = gl.getAttribLocation(this.nodeProg, 'a_screen');
         this.a_size = gl.getAttribLocation(this.nodeProg, 'a_size');
         this.u_color = gl.getUniformLocation(this.nodeProg, 'u_color');
+        this.u_viewProjection = gl.getUniformLocation(this.nodeProg, 'u_viewProjectionMatrix');
 
         this.rectVBO = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, this.rectVBO);
@@ -102,17 +103,45 @@ export class NodeGraphRenderer {
         gl.disableVertexAttribArray(aPos);
     }
 
+    drawNode(worldX, worldY, width, height, color, viewProjectionMatrix) {
+        const gl = this.gl;
+        gl.useProgram(this.nodeProg);
+        
+        // Set viewProjection matrix
+        if (this.u_viewProjection) {
+            gl.uniformMatrix4fv(this.u_viewProjection, false, viewProjectionMatrix);
+        }
+        
+        // Setup vertex attributes
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.rectVBO);
+        gl.enableVertexAttribArray(this.a_position);
+        gl.vertexAttribPointer(this.a_position, 2, gl.FLOAT, false, 0, 0);
+        
+        // Set instance data (position, size, color)
+        gl.vertexAttrib2f(this.a_screen, worldX, worldY);
+        gl.vertexAttrib2f(this.a_size, width, height);
+        gl.uniform4fv(this.u_color, color);
+        
+        // Draw
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.rectIBO);
+        gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+        
+        // Cleanup
+        gl.disableVertexAttribArray(this.a_position);
+    }
+
     render(bgColor = [0.12, 0.12, 0.13, 1]) {
         const gl = this.gl;
         gl.clear(gl.COLOR_BUFFER_BIT);
 
         this.drawBackground(bgColor);
 
-        // Simple identity matrix for basic rendering
-        const identityMatrix = new Float32Array([
-            1, 0, 0,
-            0, 1, 0,
-            0, 0, 1
+        // Use camera's viewProjection matrix for proper coordinate transformation
+        const viewProjectionMatrix = this.camera ? this.camera.viewProjection : new Float32Array([
+            1, 0, 0, 0,
+            0, 1, 0, 0,
+            0, 0, 1, 0,
+            0, 0, 0, 1
         ]);
 
         // Edges first (if graph available)
@@ -122,9 +151,9 @@ export class NodeGraphRenderer {
             const nodeMap = this.graph.nodes;
             console.log('Renderer: Rendering nodes:', nodes.length, 'edges:', edges.length);
             this.edgeRenderer.updateEdges(edges, nodeMap);
-            this.edgeRenderer.render(identityMatrix);
+            this.edgeRenderer.render(viewProjectionMatrix);
             this.instancedRenderer.updateNodes(nodes);
         }
-        this.instancedRenderer.render(identityMatrix);
+        this.instancedRenderer.render(viewProjectionMatrix);
     }
 }

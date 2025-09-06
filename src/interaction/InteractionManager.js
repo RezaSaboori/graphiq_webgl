@@ -4,9 +4,10 @@ import { EventBus } from './EventBus.js';
 import { createActor } from 'xstate';
 
 export class InteractionManager {
-  constructor(canvas, spatialIndex) {
+  constructor(canvas, spatialIndex, camera = null) {
     this.canvas = canvas;
     this.spatialIndex = spatialIndex;
+    this.camera = camera;
     this.eventBus = new EventBus();
     
     // Create FSM with event bus context
@@ -67,9 +68,16 @@ export class InteractionManager {
     // Perform picking for hover
     const target = this.pickAt(screenX, screenY);
     
+    // Convert screen coordinates to world coordinates for drag/pan operations
+    let worldPos = null;
+    if (this.camera) {
+      worldPos = this.camera.screenToWorld(screenX, screenY);
+    }
+    
     this.service.send({
       type: 'POINTER_MOVE',
       screen: { x: screenX, y: screenY },
+      world: worldPos,
       target
     });
   }
@@ -90,8 +98,20 @@ export class InteractionManager {
   pickAt(screenX, screenY) {
     if (!this.spatialIndex) return null;
     
-    // Use spatial index for picking
-    const candidates = this.spatialIndex.query(screenX, screenY, 5); // 5 pixel tolerance
+    // Convert screen coordinates to world coordinates using camera
+    let worldX, worldY;
+    if (this.camera) {
+      const world = this.camera.screenToWorld(screenX, screenY);
+      worldX = world.x;
+      worldY = world.y;
+    } else {
+      // Fallback to screen coordinates if no camera
+      worldX = screenX;
+      worldY = screenY;
+    }
+    
+    // Use spatial index for picking in world coordinates
+    const candidates = this.spatialIndex.query(worldX, worldY, 5); // 5 pixel tolerance
     
     if (candidates.length === 0) return null;
     

@@ -88,8 +88,8 @@ export function createInteractionStateMachine(context = {}) {
         context.eventBus?.emit('dragStart', context.startTarget.node); 
       },
       handleDragging: ({ context, event }) => { 
-        console.log('FSM: handleDragging', { node: context.startTarget?.node, pos: event.screen });
-        context.eventBus?.emit('drag', { node: context.startTarget.node, pos: event.screen }); 
+        console.log('FSM: handleDragging', { node: context.startTarget?.node, world: event.world });
+        context.eventBus?.emit('drag', { node: context.startTarget.node, world: event.world }); 
       },
       handleDragEnd: ({ context }) => { 
         console.log('FSM: handleDragEnd', context.startTarget?.node);

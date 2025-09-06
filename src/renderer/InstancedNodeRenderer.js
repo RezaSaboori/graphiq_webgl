@@ -107,11 +107,17 @@ export class InstancedNodeRenderer {
         this.dirty = false;
     }
 
-    render(identityMatrix) {
+    render(viewProjectionMatrix) {
         const gl = this.gl;
         if (this.dirty) this.uploadInstanceBuffers();
 
         gl.useProgram(this.program);
+
+        // Set the viewProjection matrix uniform
+        const uViewProjectionLoc = gl.getUniformLocation(this.program, 'u_viewProjectionMatrix');
+        if (uViewProjectionLoc) {
+            gl.uniformMatrix4fv(uViewProjectionLoc, false, viewProjectionMatrix);
+        }
 
         // Setup base quad - one vertex attrib
         gl.bindBuffer(gl.ARRAY_BUFFER, this.baseQuad);
