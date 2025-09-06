@@ -28,12 +28,12 @@ export class PanZoomHandler {
       const worldDeltaX = deltaX / this.camera.zoom;
       const worldDeltaY = deltaY / this.camera.zoom;
       
-      // Update camera position
-      this.camera.panBy(-worldDeltaX, -worldDeltaY);
+      // Update camera position - with corrected matrix, pan direction should be intuitive
+      this.camera.panBy(worldDeltaX, worldDeltaY);
       
       // Track momentum for smooth deceleration
-      this.momentum.x = -worldDeltaX * 0.1;
-      this.momentum.y = -worldDeltaY * 0.1;
+      this.momentum.x = worldDeltaX * 0.1;
+      this.momentum.y = worldDeltaY * 0.1;
       
       this.lastPointerPos = { x: event.screenX, y: event.screenY };
     }

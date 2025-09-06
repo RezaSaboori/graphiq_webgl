@@ -114,9 +114,13 @@ export class NodeGraphRenderer {
 
         // === Instanced rendering for edges then nodes ===
         const { viewportWidth:w, viewportHeight:h, zoom, x, y } = this.camera;
-        const sx = 2/(w/zoom), sy = 2/(h/zoom), tx = -sx*x-1, ty = -sy*y-1;
+        // Transform from world space to NDC
+        // World space: top-left origin, +Y down, camera at (x,y)
+        // NDC space: center origin, +Y up, range [-1,1]
+        const sx = 2/(w/zoom), sy = -2/(h/zoom), tx = -sx*x-1, ty = -sy*y+1;
         const mat3 = new Float32Array([sx,0,0, 0,sy,0, tx,ty,1]);
 
+        // Debug logging (can be removed in production)
         console.log('Renderer: Camera state:', { w, h, zoom, x, y });
         console.log('Renderer: Transform matrix:', { sx, sy, tx, ty });
         console.log('Renderer: Graph available:', !!this.graph);

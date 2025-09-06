@@ -101,9 +101,9 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
     });
 
     manager.on('pan', ({ dx, dy }) => {
-      // Use the incremental delta. The camera moves opposite to the mouse.
+      // Use the incremental delta. With corrected matrix, pan direction should be intuitive
       if (dx !== 0 || dy !== 0) {
-        sceneModel.panBy(-dx, -dy);
+        sceneModel.panBy(dx, dy);
       }
     });
 
@@ -129,22 +129,22 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
       switch(e.key) {
         case 'ArrowLeft':
           e.preventDefault();
-          sceneModel.panBy(panSpeed, 0);
+          sceneModel.panBy(-panSpeed, 0);
 
           break;
         case 'ArrowRight':
           e.preventDefault();
-          sceneModel.panBy(-panSpeed, 0);
+          sceneModel.panBy(panSpeed, 0);
 
           break;
         case 'ArrowUp':
           e.preventDefault();
-          sceneModel.panBy(0, panSpeed);
+          sceneModel.panBy(0, -panSpeed);
 
           break;
         case 'ArrowDown':
           e.preventDefault();
-          sceneModel.panBy(0, -panSpeed);
+          sceneModel.panBy(0, panSpeed);
 
           break;
         case ' ':
