@@ -1,7 +1,7 @@
 import { useRef, useEffect, useCallback } from 'react';
 import { NodeGraphRenderer, hexToRgbNorm } from '../renderer/NodeGraphRenderer';
 
-export const useWebGLRenderer = ({ canvasRef, camera, graph }) => {
+export const useWebGLRenderer = ({ canvasRef, graph }) => {
     const rendererRef = useRef(null);
     const animationFrameRef = useRef(null);
 
@@ -13,14 +13,9 @@ export const useWebGLRenderer = ({ canvasRef, camera, graph }) => {
         animationFrameRef.current = requestAnimationFrame(() => render(bgColor));
     }, []);
 
-    // Initialize WebGL renderer - ensure camera exists first
+    // Initialize WebGL renderer
     useEffect(() => {
         if (!canvasRef.current) return;
-        
-        // Don't proceed until camera is ready!
-        if (!camera) {
-            return; // Camera must be ready first!
-        }
 
         const canvas = canvasRef.current;
         const gl = canvas.getContext('webgl2');
@@ -30,16 +25,15 @@ export const useWebGLRenderer = ({ canvasRef, camera, graph }) => {
             return;
         }
 
-        // Now create renderer with existing camera
-        const renderer = new NodeGraphRenderer(gl, canvas, camera);
+        // Create renderer
+        const renderer = new NodeGraphRenderer(gl, canvas);
         renderer.graph = graph;
         rendererRef.current = renderer;
 
         console.log('WebGL Renderer initialized:', {
             canvasSize: { width: canvas.width, height: canvas.height },
             graphNodes: graph?.nodes?.size || 0,
-            graphEdges: graph?.edges?.size || 0,
-            camera: { x: camera.x, y: camera.y, zoom: camera.zoom }
+            graphEdges: graph?.edges?.size || 0
         });
 
         // Start the render loop
@@ -51,7 +45,7 @@ export const useWebGLRenderer = ({ canvasRef, camera, graph }) => {
             }
             renderer?.dispose?.();
         };
-    }, [canvasRef, camera, graph, render]);
+    }, [canvasRef, graph, render]);
 
     // Update renderer state
     const updateState = useCallback((state) => {

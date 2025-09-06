@@ -51,24 +51,24 @@ export function createInteractionStateMachine(context = {}) {
     guards: {
       shouldDragNode: ({ context, event }) => {
         // Only drag if threshold distance is passed and node under pointer
-        const d = Math.abs(event.world.x - context.startX) + Math.abs(event.world.y - context.startY);
+        const d = Math.abs(event.screen.x - context.startX) + Math.abs(event.screen.y - context.startY);
         return d > context.dragThreshold && context.startTarget && context.startTarget.type === 'node';
       },
       shouldPan: ({ context, event }) => {
-        const d = Math.abs(event.world.x - context.startX) + Math.abs(event.world.y - context.startY);
+        const d = Math.abs(event.screen.x - context.startX) + Math.abs(event.screen.y - context.startY);
         return d > context.dragThreshold && (!context.startTarget || context.startTarget.type !== 'node');
       },
       isClick: ({ context, event }) => {
-        const d = Math.abs(event.world.x - context.startX) + Math.abs(event.world.y - context.startY);
+        const d = Math.abs(event.screen.x - context.startX) + Math.abs(event.screen.y - context.startY);
         return d <= context.dragThreshold;
       },
     },
     actions: {
       setStartEvent: assign(({ context, event }) => {
-        console.log('FSM: setStartEvent', { world: event.world, target: event.target });
+        console.log('FSM: setStartEvent', { screen: event.screen, target: event.target });
         return {
           ...context,
-          startX: event.world.x, startY: event.world.y, startTarget: event.target
+          startX: event.screen.x, startY: event.screen.y, startTarget: event.target
         };
       }),
       resetCursor: ({ context }) => { 
@@ -88,22 +88,22 @@ export function createInteractionStateMachine(context = {}) {
         context.eventBus?.emit('dragStart', context.startTarget.node); 
       },
       handleDragging: ({ context, event }) => { 
-        console.log('FSM: handleDragging', { node: context.startTarget?.node, pos: event.world });
-        context.eventBus?.emit('drag', { node: context.startTarget.node, pos: event.world }); 
+        console.log('FSM: handleDragging', { node: context.startTarget?.node, pos: event.screen });
+        context.eventBus?.emit('drag', { node: context.startTarget.node, pos: event.screen }); 
       },
       handleDragEnd: ({ context }) => { 
         console.log('FSM: handleDragEnd', context.startTarget?.node);
         context.eventBus?.emit('dragEnd', context.startTarget.node); 
       },
       notifyPanStart: ({ context }) => { 
-        console.log('FSM: notifyPanStart', { world: { x: context.startX, y: context.startY } });
-        context.eventBus?.emit('panStart', { world: { x: context.startX, y: context.startY } }); 
+        console.log('FSM: notifyPanStart', { screen: { x: context.startX, y: context.startY } });
+        context.eventBus?.emit('panStart', { screen: { x: context.startX, y: context.startY } }); 
       },
       handlePan: ({ context, event }) => { 
-        console.log('FSM: handlePan', { dx: event.world.x - context.startX, dy: event.world.y - context.startY });
-        context.eventBus?.emit('pan', { dx: event.world.x - context.startX, dy: event.world.y - context.startY }); 
-        context.startX = event.world.x; 
-        context.startY = event.world.y; 
+        console.log('FSM: handlePan', { dx: event.screen.x - context.startX, dy: event.screen.y - context.startY });
+        context.eventBus?.emit('pan', { dx: event.screen.x - context.startX, dy: event.screen.y - context.startY }); 
+        context.startX = event.screen.x; 
+        context.startY = event.screen.y; 
       },
       endPan: ({ context }) => { 
         console.log('FSM: endPan');

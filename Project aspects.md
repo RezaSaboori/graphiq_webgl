@@ -39,79 +39,11 @@
 ```
 
 
-## World Coordinate System & Camera
+## Simple Screen Coordinate System
 
-- All node and relationship positions are defined in a unified world coordinate system (unit = pixel).
-- The world origin (0,0) is at the top-left of an infinite plane; positions may be negative or positive.
-- Rendering converts world → screen; interaction converts screen → world.
-
-### Camera/Viewport Module
-
-```javascript
-export class Camera {
-  constructor({ x = 0, y = 0, zoom = 1, viewportWidth = 1920, viewportHeight = 1080 } = {}) {
-    this.x = x;
-    this.y = y;
-    this.zoom = zoom;
-    this.viewportWidth = viewportWidth;
-    this.viewportHeight = viewportHeight;
-  }
-  worldToScreen(worldX, worldY) {
-    return {
-      x: (worldX - this.x) * this.zoom,
-      y: (worldY - this.y) * this.zoom
-    };
-  }
-  screenToWorld(screenX, screenY) {
-    return {
-      x: (screenX / this.zoom) + this.x,
-      y: (screenY / this.zoom) + this.y
-    };
-  }
-  panBy(dx, dy) {
-    this.x += dx;
-    this.y += dy;
-  }
-  zoomTo(zoom, centerScreenX, centerScreenY) {
-    const worldCenter = this.screenToWorld(centerScreenX, centerScreenY);
-    this.zoom = zoom;
-    this.x = worldCenter.x - (centerScreenX / this.zoom);
-    this.y = worldCenter.y - (centerScreenY / this.zoom);
-  }
-  setViewportSize(width, height) {
-    this.viewportWidth = width;
-    this.viewportHeight = height;
-  }
-  getVisibleWorldRect() {
-    return {
-      left: this.x,
-      top: this.y,
-      right: this.x + (this.viewportWidth / this.zoom),
-      bottom: this.y + (this.viewportHeight / this.zoom)
-    };
-  }
-}
-```
-
-### Rendering and Interaction with World/Screen Transforms
-
-- Store node positions, label anchors, and edge bezier control points in world space.
-- On render, convert to screen space using the camera.
-- On input (click, hover, drag), convert screen → world before hit-testing or modifying data.
-
-```javascript
-// Rendering a node
-const { x, y } = camera.worldToScreen(node.position.x, node.position.y);
-drawNode(x, y, ...);
-
-// Hit-testing on click
-const world = camera.screenToWorld(mouseX, mouseY);
-if (isPointInNode(world, node)) { /* ... */ }
-
-// Panning and zooming
-camera.panBy(worldDeltaX, worldDeltaY);
-camera.zoomTo(newZoom, mouseX, mouseY);
-```
+- All node and relationship positions are defined in screen coordinates (pixels).
+- The screen origin (0,0) is at the top-left of the canvas.
+- Direct rendering without coordinate transformation.
 
 
 ## Advanced WebGL2 Architecture for Node Graphs

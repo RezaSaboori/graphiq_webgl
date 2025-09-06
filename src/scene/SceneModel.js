@@ -1,8 +1,7 @@
 // src/scene/SceneModel.js
 export class SceneModel {
-  constructor(graph, camera, spatialIndex, renderer, onDirty) {
+  constructor(graph, spatialIndex, renderer, onDirty) {
     this.graph = graph;
-    this.camera = camera;
     this.spatialIndex = spatialIndex;
     this.renderer = renderer;
     this.onDirty = onDirty;
@@ -19,10 +18,10 @@ export class SceneModel {
   }
 
   // Node operations
-  moveNode(nodeId, worldPos) {
+  moveNode(nodeId, screenPos) {
     const node = this.graph.getNode(nodeId);
     if (node) {
-      node.position = { x: worldPos.x, y: worldPos.y };
+      node.position = { x: screenPos.x, y: screenPos.y };
       this.spatialIndex.add(node); // Update spatial index
       this.markDirty();
     }
@@ -63,26 +62,6 @@ export class SceneModel {
     this.markDirty();
   }
 
-  // Camera operations
-  panBy(dx, dy) {
-    this.camera.panBy(dx, dy);
-    this.markDirty();
-  }
-
-  panTo(x, y) {
-    this.camera.panTo(x, y);
-    this.markDirty();
-  }
-
-  zoomTo(zoom, centerX, centerY) {
-    this.camera.zoomTo(zoom, centerX, centerY);
-    this.markDirty();
-  }
-
-  setViewportSize(width, height) {
-    this.camera.setViewportSize(width, height);
-    this.markDirty();
-  }
 
   // Graph operations
   updateGraph(newGraph) {
@@ -122,9 +101,6 @@ export class SceneModel {
     return this.graph;
   }
 
-  getCamera() {
-    return this.camera;
-  }
 
   getSelectedNodes() {
     return this.selectedNodes;

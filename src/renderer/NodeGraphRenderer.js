@@ -35,13 +35,12 @@ export function hexToRgbNorm(hex) {
 }
 
 export class NodeGraphRenderer {
-    constructor(gl, canvas, camera) {
+    constructor(gl, canvas) {
         this.gl = gl;
         this.canvas = canvas;
-        this.camera = camera;
 
-        this.instancedRenderer = new InstancedNodeRenderer(gl, camera);
-        this.edgeRenderer = new InstancedEdgeRenderer(gl, camera);
+        this.instancedRenderer = new InstancedNodeRenderer(gl);
+        this.edgeRenderer = new InstancedEdgeRenderer(gl);
         this.init();
     }
     init() {
@@ -67,9 +66,8 @@ export class NodeGraphRenderer {
         // --- Node rendering program ---
         this.nodeProg = createProgram(gl, nodeVertSrc, nodeFragSrc);
         this.a_position = gl.getAttribLocation(this.nodeProg, 'a_position');
-        this.a_world = gl.getAttribLocation(this.nodeProg, 'a_world');
+        this.a_screen = gl.getAttribLocation(this.nodeProg, 'a_screen');
         this.a_size = gl.getAttribLocation(this.nodeProg, 'a_size');
-        this.u_screenFromWorld = gl.getUniformLocation(this.nodeProg, 'u_screenFromWorld');
         this.u_color = gl.getUniformLocation(this.nodeProg, 'u_color');
 
         this.rectVBO = gl.createBuffer();
@@ -88,8 +86,6 @@ export class NodeGraphRenderer {
 
     setViewportSize(width, height) {
         this.gl.viewport(0, 0, width, height);
-        if (this.camera?.setViewportSize)
-        this.camera.setViewportSize(width, height);
     }
 
     drawBackground(bgColor) {
@@ -112,19 +108,12 @@ export class NodeGraphRenderer {
 
         this.drawBackground(bgColor);
 
-        // === Instanced rendering for edges then nodes ===
-        const { viewportWidth:w, viewportHeight:h, zoom, x, y } = this.camera;
-        // Transform from world space to NDC
-        // World space: top-left origin, +Y down, camera at (x,y)
-        // NDC space: center origin, +Y up, range [-1,1]
-        const sx = 2/(w/zoom), sy = -2/(h/zoom), tx = -sx*x-1, ty = -sy*y+1;
-        const mat3 = new Float32Array([sx,0,0, 0,sy,0, tx,ty,1]);
-
-        // Debug logging (can be removed in production)
-        console.log('Renderer: Camera state:', { w, h, zoom, x, y });
-        console.log('Renderer: Transform matrix:', { sx, sy, tx, ty });
-        console.log('Renderer: Graph available:', !!this.graph);
-        console.log('Renderer: Node count:', this.graph ? this.graph.nodes.size : 0);
+        // Simple identity matrix for basic rendering
+        const identityMatrix = new Float32Array([
+            1, 0, 0,
+            0, 1, 0,
+            0, 0, 1
+        ]);
 
         // Edges first (if graph available)
         if (this.graph && this.edgeRenderer && this.instancedRenderer) {
@@ -133,9 +122,9 @@ export class NodeGraphRenderer {
             const nodeMap = this.graph.nodes;
             console.log('Renderer: Rendering nodes:', nodes.length, 'edges:', edges.length);
             this.edgeRenderer.updateEdges(edges, nodeMap);
-            this.edgeRenderer.render(mat3);
+            this.edgeRenderer.render(identityMatrix);
             this.instancedRenderer.updateNodes(nodes);
         }
-        this.instancedRenderer.render(mat3);
+        this.instancedRenderer.render(identityMatrix);
     }
 }

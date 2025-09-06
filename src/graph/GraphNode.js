@@ -2,7 +2,7 @@ export class GraphNode {
     /**
      * @param {Object} params
      * @param {string} params.id - Unique node ID
-     * @param {{x:number, y:number}} [params.position={x:0, y:0}] - World position
+     * @param {{x:number, y:number}} [params.position={x:0, y:0}] - Screen position
      * @param {string} [params.color="#333"] - Card background color
      * @param {string} [params.caption=""] - Caption text at bottom of the card
      * @param {Array<{text:string, color:string}>} [params.labels=[]] - Card labels

@@ -4,9 +4,8 @@ import { EventBus } from './EventBus.js';
 import { createActor } from 'xstate';
 
 export class InteractionManager {
-  constructor(canvas, camera, spatialIndex) {
+  constructor(canvas, spatialIndex) {
     this.canvas = canvas;
-    this.camera = camera;
     this.spatialIndex = spatialIndex;
     this.eventBus = new EventBus();
     
@@ -45,16 +44,14 @@ export class InteractionManager {
     const rect = this.canvas.getBoundingClientRect();
     const screenX = event.clientX - rect.left;
     const screenY = event.clientY - rect.top;
-    const world = this.camera.screenToWorld(screenX, screenY);
     
     // Perform picking
-    const target = this.pickAt(world.x, world.y);
+    const target = this.pickAt(screenX, screenY);
     
-    console.log('Pointer down:', { world, target, screen: { x: screenX, y: screenY } });
+    console.log('Pointer down:', { screen: { x: screenX, y: screenY }, target });
     
     this.service.send({
       type: 'POINTER_DOWN',
-      world,
       screen: { x: screenX, y: screenY },
       target
     });
@@ -66,14 +63,12 @@ export class InteractionManager {
     const rect = this.canvas.getBoundingClientRect();
     const screenX = event.clientX - rect.left;
     const screenY = event.clientY - rect.top;
-    const world = this.camera.screenToWorld(screenX, screenY);
     
     // Perform picking for hover
-    const target = this.pickAt(world.x, world.y);
+    const target = this.pickAt(screenX, screenY);
     
     this.service.send({
       type: 'POINTER_MOVE',
-      world,
       screen: { x: screenX, y: screenY },
       target
     });
@@ -85,20 +80,18 @@ export class InteractionManager {
     const rect = this.canvas.getBoundingClientRect();
     const screenX = event.clientX - rect.left;
     const screenY = event.clientY - rect.top;
-    const world = this.camera.screenToWorld(screenX, screenY);
     
     this.service.send({
       type: 'POINTER_UP',
-      world,
       screen: { x: screenX, y: screenY }
     });
   }
 
-  pickAt(worldX, worldY) {
+  pickAt(screenX, screenY) {
     if (!this.spatialIndex) return null;
     
     // Use spatial index for picking
-    const candidates = this.spatialIndex.query(worldX, worldY, 5); // 5 pixel tolerance
+    const candidates = this.spatialIndex.query(screenX, screenY, 5); // 5 pixel tolerance
     
     if (candidates.length === 0) return null;
     

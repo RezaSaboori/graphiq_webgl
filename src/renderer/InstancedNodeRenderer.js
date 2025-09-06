@@ -5,9 +5,8 @@ import instancedNodeFrag from './shaders/instancedNode.frag?raw';
 import { hexToRgbNorm } from './NodeGraphRenderer';
 
 export class InstancedNodeRenderer {
-    constructor(gl, camera, maxNodes = 10000) {
+    constructor(gl, maxNodes = 10000) {
         this.gl = gl;
-        this.camera = camera;
         this.maxNodes = maxNodes;
         this.currentCount = 0;
 
@@ -73,6 +72,7 @@ export class InstancedNodeRenderer {
         const scaleIdx = i * 2;
         const colorIdx = i * 4;
 
+        // Use screen coordinates directly
         this.positions[posIdx] = node.position.x;
         this.positions[posIdx + 1] = node.position.y;
 
@@ -107,15 +107,11 @@ export class InstancedNodeRenderer {
         this.dirty = false;
     }
 
-    render(worldToScreenMat3) {
+    render(identityMatrix) {
         const gl = this.gl;
         if (this.dirty) this.uploadInstanceBuffers();
 
         gl.useProgram(this.program);
-
-        // Setup uniforms
-        const uMatLoc = gl.getUniformLocation(this.program, "u_worldToScreen");
-        gl.uniformMatrix3fv(uMatLoc, false, worldToScreenMat3);
 
         // Setup base quad - one vertex attrib
         gl.bindBuffer(gl.ARRAY_BUFFER, this.baseQuad);

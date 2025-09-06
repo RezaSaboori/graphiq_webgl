@@ -5,9 +5,8 @@ import instancedEdgeFrag from './shaders/instancedEdge.frag?raw';
 import { hexToRgbNorm } from './NodeGraphRenderer';
 
 export class InstancedEdgeRenderer {
-  constructor(gl, camera, maxEdges = 50000) {
+  constructor(gl, maxEdges = 50000) {
     this.gl = gl;
-    this.camera = camera;
     this.maxEdges = maxEdges;
     this.edgeCount = 0;
 
@@ -58,6 +57,7 @@ export class InstancedEdgeRenderer {
       const nTo = nodeMap.get(e.toId);
       const startIdx = i * 2, colorIdx = i * 4;
 
+      // Use screen coordinates directly
       this.starts[startIdx] = nFrom.position.x;
       this.starts[startIdx + 1] = nFrom.position.y;
       this.ends[startIdx] = nTo.position.x;
@@ -89,16 +89,12 @@ export class InstancedEdgeRenderer {
     this.dirty = false;
   }
 
-  render(worldToScreenMat3) {
+  render(identityMatrix) {
     const gl = this.gl;
     if (this.edgeCount === 0) return;
     if (this.dirty) this.uploadInstanceBuffers();
 
     gl.useProgram(this.program);
-
-    // Uniforms
-    const uMatLoc = gl.getUniformLocation(this.program, "u_worldToScreen");
-    gl.uniformMatrix3fv(uMatLoc, false, worldToScreenMat3);
 
     // Per-instance attrib setup
     const bind = (buffer, attrib, comps) => {
