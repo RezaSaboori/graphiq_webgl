@@ -61,9 +61,6 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
     const renderer = new NodeGraphRenderer(gl, canvas, camera);
     rendererRef.current = renderer;
     
-    // Set initial graph on renderer
-    renderer.graph = graph;
-    
     const drawLoop = new DrawLoop(renderer);
     drawLoopRef.current = drawLoop;
 
@@ -79,61 +76,43 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
     managerRef.current = manager;
 
     // 7. Wire FSM events to scene model (FSM-driven updates)
-    manager.on('dragStart', (node) => {
-      console.log('React: dragStart received', node);
+    manager.on('dragStart', ({ node }) => {
       // All drag state is managed in SceneModel, not React
       if (node) {
         sceneModel.setDraggedNode(node.id);
       }
+      canvas.style.cursor = 'move';
     });
 
     manager.on('drag', ({ node, pos }) => {
-      console.log('React: drag received', { node, pos });
       if (node && pos) {
         sceneModel.moveNode(node.id, pos);
       }
     });
 
-    manager.on('dragEnd', (node) => {
-      console.log('React: dragEnd received', node);
+    manager.on('dragEnd', () => {
       sceneModel.clearDraggedNode();
+      canvas.style.cursor = '';
     });
 
-    manager.on('panStart', ({ world }) => {
-      console.log('React: panStart received', { world });
-      // Pan start - no action needed, just cursor change
+    manager.on('panStart', ({ start }) => {
+
+      canvas.style.cursor = 'grabbing';
     });
 
     manager.on('pan', ({ dx, dy }) => {
-      console.log('React: pan received', { dx, dy });
-      sceneModel.panBy(dx, dy);
-    });
-
-    manager.on('panEnd', () => {
-      console.log('React: panEnd received');
-      // Pan end - no action needed
-    });
-
-    manager.on('click', (node) => {
-      console.log('React: click received', node);
-      if (node) {
-        sceneModel.selectNode(node.id);
-      } else {
-        sceneModel.clearSelection();
+      // Use the incremental delta. The camera moves opposite to the mouse.
+      if (dx !== 0 || dy !== 0) {
+        sceneModel.panBy(-dx, -dy);
       }
     });
 
-    manager.on('hover', (node) => {
-      console.log('React: hover received', node);
-      sceneModel.setHoveredNode(node?.id || null);
+    manager.on('panEnd', () => {
+
+      canvas.style.cursor = '';
     });
 
-    manager.on('cursor', (cursor) => {
-      console.log('React: cursor received', cursor);
-      canvas.style.cursor = cursor;
-    });
-
-    // 8. Handle zoom (direct wheel event - not through FSM as it's continuous)
+    // 8. Handle zoom (direct wheel event)
     const wheelHandler = (e) => {
       e.preventDefault();
       const rect = canvas.getBoundingClientRect();
@@ -151,22 +130,29 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
         case 'ArrowLeft':
           e.preventDefault();
           sceneModel.panBy(panSpeed, 0);
+
           break;
         case 'ArrowRight':
           e.preventDefault();
           sceneModel.panBy(-panSpeed, 0);
+
           break;
         case 'ArrowUp':
           e.preventDefault();
           sceneModel.panBy(0, panSpeed);
+
           break;
         case 'ArrowDown':
           e.preventDefault();
           sceneModel.panBy(0, -panSpeed);
+
           break;
         case ' ':
           e.preventDefault();
-          // Space bar - could be used for reset view or other actions
+
+
+
+
           break;
       }
     };
@@ -186,29 +172,14 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
     const ro = new ResizeObserver(handleResize);
     ro.observe(canvas.parentElement ?? canvas);
 
-    // 10. Initial scene setup - center camera on graph (maintain 1:1 pixel ratio)
+    // 10. Initial scene setup
     const nodesArr = [...graph.nodes.values()];
-    console.log('Graph nodes:', nodesArr.length, 'nodes');
-    console.log('Node positions:', nodesArr.map(n => ({ id: n.id, position: n.position, width: n.width, height: n.height })));
-    
     if (nodesArr.length > 0) {
-      // Calculate graph center without changing zoom (maintain 1:1 pixel ratio)
       const left = Math.min(...nodesArr.map(n => (n.position?.x ?? 0) - (n.width ?? 300) / 2));
       const right = Math.max(...nodesArr.map(n => (n.position?.x ?? 0) + (n.width ?? 300) / 2));
       const top = Math.min(...nodesArr.map(n => (n.position?.y ?? 0) - (n.height ?? 100) / 2));
       const bottom = Math.max(...nodesArr.map(n => (n.position?.y ?? 0) + (n.height ?? 100) / 2));
-      
-      const centerX = (left + right) / 2;
-      const centerY = (top + bottom) / 2;
-      
-      console.log('Graph bounds:', { left, top, right, bottom });
-      console.log('Graph center:', { centerX, centerY });
-      console.log('Canvas size:', { width: canvas.width, height: canvas.height });
-      
-      // Center camera on graph center (keep zoom at 1.0 for 1:1 pixel ratio)
-      camera.panTo(centerX - canvas.width / 2, centerY - canvas.height / 2);
-      
-      console.log('Camera after center:', { x: camera.x, y: camera.y, zoom: camera.zoom });
+      camera.fitWorldRect({ left, top, right, bottom }, 32);
     }
 
     // Set initial graph and background
@@ -247,7 +218,6 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
   return (
     <canvas
       ref={canvasRef}
-      tabIndex={0}
       width={1920}
       height={1080}
       style={{ 
