@@ -117,11 +117,17 @@ export class NodeGraphRenderer {
         const sx = 2/(w/zoom), sy = 2/(h/zoom), tx = -sx*x-1, ty = -sy*y-1;
         const mat3 = new Float32Array([sx,0,0, 0,sy,0, tx,ty,1]);
 
+        console.log('Renderer: Camera state:', { w, h, zoom, x, y });
+        console.log('Renderer: Transform matrix:', { sx, sy, tx, ty });
+        console.log('Renderer: Graph available:', !!this.graph);
+        console.log('Renderer: Node count:', this.graph ? this.graph.nodes.size : 0);
+
         // Edges first (if graph available)
         if (this.graph && this.edgeRenderer && this.instancedRenderer) {
             const nodes = [...this.graph.nodes.values()];
             const edges = [...this.graph.edges.values()];
             const nodeMap = this.graph.nodes;
+            console.log('Renderer: Rendering nodes:', nodes.length, 'edges:', edges.length);
             this.edgeRenderer.updateEdges(edges, nodeMap);
             this.edgeRenderer.render(mat3);
             this.instancedRenderer.updateNodes(nodes);

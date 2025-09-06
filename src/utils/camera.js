@@ -82,7 +82,11 @@ export class Camera {
         const zoomX = (this.viewportWidth - marginPx*2) / worldWidth;
         const zoomY = (this.viewportHeight - marginPx*2) / worldHeight;
         this.zoom = Math.max(0.01, Math.min(zoomX, zoomY));
-        this.x = left - marginPx/this.zoom;
-        this.y = top - marginPx/this.zoom;
+        
+        // Center the graph in the viewport
+        const centerX = (left + right) / 2;
+        const centerY = (top + bottom) / 2;
+        this.x = centerX - this.viewportWidth / (2 * this.zoom);
+        this.y = centerY - this.viewportHeight / (2 * this.zoom);
         }
 }
