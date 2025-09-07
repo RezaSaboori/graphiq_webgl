@@ -76,7 +76,17 @@ export class SceneModel {
       this.renderer.graph = newGraph;
     }
     
+    // Refit the view to show the new graph
+    this.refitView();
+    
     this.markDirty();
+  }
+
+  refitView() {
+    if (this.camera && this.graph) {
+      const nodes = [...this.graph.nodes.values()];
+      this.camera.fitToView(nodes);
+    }
   }
 
   setNodeWidth(width) {

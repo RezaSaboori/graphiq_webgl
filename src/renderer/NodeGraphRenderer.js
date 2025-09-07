@@ -38,6 +38,7 @@ export class NodeGraphRenderer {
     constructor(gl, canvas) {
         this.gl = gl;
         this.canvas = canvas;
+        this.camera = null; // Will be set by the main component
 
         this.instancedRenderer = new InstancedNodeRenderer(gl);
         this.edgeRenderer = new InstancedEdgeRenderer(gl);

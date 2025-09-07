@@ -54,30 +54,43 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
       }
     }
 
-    // 3. Setup camera system
-    const camera = new Camera(canvas.width, canvas.height);
+    // 3. Handle resize first to get proper canvas size
+    const handleResize = () => {
+      const box = canvas.parentElement ?? canvas;
+      const rect = box.getBoundingClientRect();
+      const nextW = Math.max(1, Math.floor(rect.width || canvas.clientWidth || canvas.width));
+      const nextH = Math.max(1, Math.floor(rect.height || canvas.clientHeight || canvas.height));
+      canvas.width = nextW;
+      canvas.height = nextH;
+      return { width: nextW, height: nextH };
+    };
+    const { width: canvasWidth, height: canvasHeight } = handleResize();
+
+    // 4. Setup camera system with proper viewport size
+    const camera = new Camera(canvasWidth, canvasHeight);
     
-    // 4. Setup renderer and draw loop
+    // 5. Setup renderer and draw loop
     const renderer = new NodeGraphRenderer(gl, canvas);
     rendererRef.current = renderer;
     renderer.camera = camera; // Save reference for renderer
+    renderer.setViewportSize(canvasWidth, canvasHeight); // Set initial WebGL viewport
     
     const drawLoop = new DrawLoop(renderer);
     drawLoopRef.current = drawLoop;
 
-    // 5. Create scene model (centralized state management)
+    // 6. Create scene model (centralized state management)
     const sceneModel = new SceneModel(graph, spatial, renderer, () => drawLoop.markDirty());
     sceneModelRef.current = sceneModel;
     sceneModel.camera = camera; // Make camera accessible for pan/zoom/fit
 
-    // 6. Initialize spatial index
+    // 7. Initialize spatial index
     spatial.rebuild([...graph.nodes.values()]);
 
-    // 7. Setup interaction manager
+    // 8. Setup interaction manager
     const manager = new InteractionManager(canvas, spatial, camera);
     managerRef.current = manager;
 
-    // 8. Wire FSM events to scene model (FSM-driven updates)
+    // 9. Wire FSM events to scene model (FSM-driven updates)
     manager.on('dragStart', ({ node }) => {
       // All drag state is managed in SceneModel, not React
       if (node) {
@@ -97,30 +110,34 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
       canvas.style.cursor = '';
     });
 
-
-
-    // 9. Handle resize
-    const handleResize = () => {
+    // 10. Handle resize for future changes
+    const handleResizeUpdate = () => {
       const box = canvas.parentElement ?? canvas;
       const rect = box.getBoundingClientRect();
       const nextW = Math.max(1, Math.floor(rect.width || canvas.clientWidth || canvas.width));
       const nextH = Math.max(1, Math.floor(rect.height || canvas.clientHeight || canvas.height));
       canvas.width = nextW;
       canvas.height = nextH;
+      
+      // Update camera and WebGL viewport
       camera.setViewportSize(canvas.width, canvas.height);
+      renderer.setViewportSize(canvas.width, canvas.height);
+      
+      // Refit the view after resize
+      const nodes = [...graph.nodes.values()];
+      camera.fitToView(nodes);
     };
-    handleResize();
-    const ro = new ResizeObserver(handleResize);
+    const ro = new ResizeObserver(handleResizeUpdate);
     ro.observe(canvas.parentElement ?? canvas);
 
-    // 10. Initial scene setup
-    // Center on origin and zoom=1 on initial load
-    camera.setCenter(0, 0);
-    camera.setZoom(1.0);
-
+    // 11. Initial scene setup
     // Set initial graph and background
     sceneModel.updateGraph(graph);
     sceneModel.setNodeWidth(nodeWidth);
+    
+    // Fit the view to show the entire graph
+    const nodes = [...graph.nodes.values()];
+    camera.fitToView(nodes);
     
     const bgHex = source?.style?.['background-color'] || source?.style?.backgroundColor;
     const bg = bgHex ? [...hexToRgbNorm(bgHex), 1] : undefined;
@@ -131,10 +148,10 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
       drawLoop.markDirty(); // Mark dirty for initial render
     }
 
-    // 11. Start the draw loop
+    // 12. Start the draw loop
     drawLoop.start();
 
-    // 12. Cleanup
+    // 13. Cleanup
     return () => {
       ro.disconnect();
       drawLoop.stop();

@@ -61,4 +61,45 @@ export class Camera {
     vec4.transformMat4(out, clip, invVP);
     return { x: out[0] / out[3], y: out[1] / out[3] };
   }
+
+  // Fit the view to contain all nodes with some padding
+  fitToView(nodes, padding = 100) {
+    if (!nodes || nodes.length === 0) return;
+
+    // Calculate bounding box of all nodes
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    
+    for (const node of nodes) {
+      const x = node.position.x;
+      const y = node.position.y;
+      const width = node.width || 300;
+      const height = node.height || 100;
+      
+      minX = Math.min(minX, x - width/2);
+      minY = Math.min(minY, y - height/2);
+      maxX = Math.max(maxX, x + width/2);
+      maxY = Math.max(maxY, y + height/2);
+    }
+
+    // Add padding
+    minX -= padding;
+    minY -= padding;
+    maxX += padding;
+    maxY += padding;
+
+    // Calculate center and dimensions
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+    const graphWidth = maxX - minX;
+    const graphHeight = maxY - minY;
+
+    // Calculate zoom to fit the graph
+    const zoomX = this.viewportWidth / graphWidth;
+    const zoomY = this.viewportHeight / graphHeight;
+    const zoom = Math.min(zoomX, zoomY, 1.0); // Don't zoom in more than 1:1
+
+    // Apply the transformation
+    this.setCenter(centerX, centerY);
+    this.setZoom(zoom);
+  }
 }
