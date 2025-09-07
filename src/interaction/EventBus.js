@@ -18,17 +18,14 @@ export class EventBus {
   }
 
   emit(event, data) {
-    console.log(`EventBus: emitting ${event}`, data);
     if (this.listeners.has(event)) {
       this.listeners.get(event).forEach(callback => {
         try {
           callback(data);
         } catch (error) {
-          console.error(`Error in event listener for ${event}:`, error);
+          // Error in event listener - silently continue
         }
       });
-    } else {
-      console.log(`EventBus: no listeners for ${event}`);
     }
   }
 

@@ -167,7 +167,6 @@ export class NodeGraphRenderer {
             
             // **FIXED**: Fallback - if no nodes are visible, show all nodes (debugging)
             if (visibleNodes.length === 0 && allNodes.length > 0) {
-                console.warn('No nodes visible in frustum, falling back to all nodes');
                 visibleNodes = allNodes;
             }
             
@@ -178,7 +177,6 @@ export class NodeGraphRenderer {
             // **SAFETY**: If zoom is reasonable (>0.1), always show all visible nodes
             if (this.camera && this.camera.zoom > 0.1) {
                 lodFilteredNodes = visibleNodes; // Show all visible nodes
-                console.log(`Zoom level ${this.camera.zoom.toFixed(3)} - showing all ${visibleNodes.length} visible nodes`);
             } else {
                 // Only apply LOD filtering at extreme zoom out
                 if (lod === 'low') {
@@ -189,7 +187,6 @@ export class NodeGraphRenderer {
                     lodFilteredNodes = visibleNodes.filter((_, index) => index % 2 === 0);
                 }
                 // At 'full' LOD, show all visible nodes
-                console.log(`Extreme zoom level ${this.camera.zoom.toFixed(3)} - LOD=${lod}, showing ${lodFilteredNodes.length}/${visibleNodes.length} nodes`);
             }
             
             // **FIXED**: Edges should connect ALL visible nodes (frustum culled), not LOD-filtered nodes
@@ -199,9 +196,6 @@ export class NodeGraphRenderer {
             const visibleEdges = allEdges.filter(e =>
                 visibleNodeIds.has(e.fromId) && visibleNodeIds.has(e.toId)
             );
-
-            // Performance logging with LOD info
-            console.log(`Frustum Culling + LOD: LOD=${lod}, Visible nodes: ${lodFilteredNodes.length}/${visibleNodes.length}/${allNodes.length}, Visible edges: ${visibleEdges.length}/${allEdges.length}`);
 
             // Update only visible for renderer
             // Create a map of only visible nodes for edge rendering

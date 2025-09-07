@@ -21,7 +21,6 @@ export const useWebGLRenderer = ({ canvasRef, graph }) => {
         const gl = canvas.getContext('webgl2');
         
         if (!gl) {
-            console.error('WebGL2 not supported');
             return;
         }
 
@@ -29,10 +28,6 @@ export const useWebGLRenderer = ({ canvasRef, graph }) => {
         const renderer = new NodeGraphRenderer(gl, canvas);
         renderer.graph = graph;
         rendererRef.current = renderer;
-
-        console.log('WebGL Renderer initialized:', {
-            canvasSize: { width: canvas.width, height: canvas.height },
-            graphNodes: graph?.nodes?.size || 0,
             graphEdges: graph?.edges?.size || 0
         });
 

@@ -65,8 +65,6 @@ export class InteractionManager {
     // Perform picking
     const target = this.pickAt(screenX, screenY);
     
-    console.log('Pointer down:', { screen: { x: screenX, y: screenY }, target });
-    
     this.service.send({
       type: 'POINTER_DOWN',
       screen: { x: screenX, y: screenY },
