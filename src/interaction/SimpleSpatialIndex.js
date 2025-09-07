@@ -50,4 +50,36 @@ export class SimpleSpatialIndex {
   clear() {
     this.nodes = [];
   }
+
+  // PHASE 2: get visible nodes given a camera
+  // camera: instance of Camera.js (with .screenToWorld())
+  // margin: extra world-units to not cut nodes at edge
+  getVisibleNodes(camera, margin = 100) {
+    if (!camera) return this.nodes;
+    
+    // get screen bounds in world space
+    const topLeft = camera.screenToWorld(0, 0);
+    const bottomRight = camera.screenToWorld(camera.viewportWidth, camera.viewportHeight);
+
+    const minX = Math.min(topLeft.x, bottomRight.x) - margin;
+    const maxX = Math.max(topLeft.x, bottomRight.x) + margin;
+    const minY = Math.min(topLeft.y, bottomRight.y) - margin;
+    const maxY = Math.max(topLeft.y, bottomRight.y) + margin;
+
+    // filter only in-view nodes
+    const visibleNodes = this.nodes.filter(node => {
+      if (!node.position) return false;
+      const x = node.position.x;
+      const y = node.position.y;
+      const w = node.width || 300;
+      const h = node.height || 100;
+      return (
+        x + w/2 >= minX &&
+        x - w/2 <= maxX &&
+        y + h/2 >= minY &&
+        y - h/2 <= maxY
+      );
+    });
+    return visibleNodes;
+  }
 }

@@ -73,6 +73,7 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
     const renderer = new NodeGraphRenderer(gl, canvas);
     rendererRef.current = renderer;
     renderer.camera = camera; // Save reference for renderer
+    renderer.spatialIndex = spatial; // Save reference for frustum culling
     renderer.setViewportSize(canvasWidth, canvasHeight); // Set initial WebGL viewport
     
     const drawLoop = new DrawLoop(renderer);

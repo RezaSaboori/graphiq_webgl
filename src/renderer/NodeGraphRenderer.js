@@ -34,11 +34,23 @@ export function hexToRgbNorm(hex) {
     return [(num>>16 & 255)/255, (num>>8 & 255)/255, (num&255)/255];
 }
 
+// PHASE 2: Level-of-Detail computation based on camera zoom
+export function computeLOD(camera) {
+    if (!camera) return 'full';
+    
+    // **FIXED**: Very conservative LOD - only filter at extreme zoom out
+    // Full detail at zoom>=0.1, medium at >=0.05, low at <0.05
+    if (camera.zoom > 0.1) return 'full';
+    if (camera.zoom > 0.05) return 'medium';
+    return 'low'; // only at extreme zoom out
+}
+
 export class NodeGraphRenderer {
     constructor(gl, canvas) {
         this.gl = gl;
         this.canvas = canvas;
         this.camera = null; // Will be set by the main component
+        this.spatialIndex = null; // Will be set by the main component
 
         this.instancedRenderer = new InstancedNodeRenderer(gl);
         this.edgeRenderer = new InstancedEdgeRenderer(gl);
@@ -147,13 +159,60 @@ export class NodeGraphRenderer {
 
         // Edges first (if graph available)
         if (this.graph && this.edgeRenderer && this.instancedRenderer) {
-            const nodes = [...this.graph.nodes.values()];
-            const edges = [...this.graph.edges.values()];
-            const nodeMap = this.graph.nodes;
-            console.log('Renderer: Rendering nodes:', nodes.length, 'edges:', edges.length);
-            this.edgeRenderer.updateEdges(edges, nodeMap);
+            // **NEW**: Use visible nodes only for frustum culling
+            const allNodes = [...this.graph.nodes.values()];
+            let visibleNodes = this.spatialIndex && this.camera ?
+                this.spatialIndex.getVisibleNodes(this.camera)
+                : allNodes;
+            
+            // **FIXED**: Fallback - if no nodes are visible, show all nodes (debugging)
+            if (visibleNodes.length === 0 && allNodes.length > 0) {
+                console.warn('No nodes visible in frustum, falling back to all nodes');
+                visibleNodes = allNodes;
+            }
+            
+            // **FIXED**: Apply LOD filtering based on camera zoom
+            const lod = computeLOD(this.camera);
+            let lodFilteredNodes = visibleNodes;
+            
+            // **SAFETY**: If zoom is reasonable (>0.1), always show all visible nodes
+            if (this.camera && this.camera.zoom > 0.1) {
+                lodFilteredNodes = visibleNodes; // Show all visible nodes
+                console.log(`Zoom level ${this.camera.zoom.toFixed(3)} - showing all ${visibleNodes.length} visible nodes`);
+            } else {
+                // Only apply LOD filtering at extreme zoom out
+                if (lod === 'low') {
+                    // At low LOD, only show a subset of nodes (every 4th node for example)
+                    lodFilteredNodes = visibleNodes.filter((_, index) => index % 4 === 0);
+                } else if (lod === 'medium') {
+                    // At medium LOD, show every 2nd node
+                    lodFilteredNodes = visibleNodes.filter((_, index) => index % 2 === 0);
+                }
+                // At 'full' LOD, show all visible nodes
+                console.log(`Extreme zoom level ${this.camera.zoom.toFixed(3)} - LOD=${lod}, showing ${lodFilteredNodes.length}/${visibleNodes.length} nodes`);
+            }
+            
+            // **FIXED**: Edges should connect ALL visible nodes (frustum culled), not LOD-filtered nodes
+            // This ensures relationships between visible nodes are always shown
+            const visibleNodeIds = new Set(visibleNodes.map(n => n.id));
+            const allEdges = [...this.graph.edges.values()];
+            const visibleEdges = allEdges.filter(e =>
+                visibleNodeIds.has(e.fromId) && visibleNodeIds.has(e.toId)
+            );
+
+            // Performance logging with LOD info
+            console.log(`Frustum Culling + LOD: LOD=${lod}, Visible nodes: ${lodFilteredNodes.length}/${visibleNodes.length}/${allNodes.length}, Visible edges: ${visibleEdges.length}/${allEdges.length}`);
+
+            // Update only visible for renderer
+            // Create a map of only visible nodes for edge rendering
+            const visibleNodeMap = new Map();
+            visibleNodes.forEach(node => {
+                visibleNodeMap.set(node.id, node);
+            });
+            
+            this.edgeRenderer.updateEdges(visibleEdges, visibleNodeMap);
             this.edgeRenderer.render(viewProjectionMatrix);
-            this.instancedRenderer.updateNodes(nodes);
+            this.instancedRenderer.updateNodes(lodFilteredNodes);
         }
         this.instancedRenderer.render(viewProjectionMatrix);
     }
