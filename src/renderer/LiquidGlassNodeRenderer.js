@@ -1,0 +1,389 @@
+import vertexShaderSrc from './shaders/vertex.glsl?raw';
+import fragmentGlassMainSrc from './shaders/fragment-main.glsl?raw';
+import fragmentBgVBlur from './shaders/fragment-bg-vblur.glsl?raw';
+import fragmentBgHBlur from './shaders/fragment-bg-hblur.glsl?raw';
+
+// Glass effect uniforms - shared across all nodes
+export const GLASS_UNIFORMS = {
+  refThickness: 20,
+  refFactor: 1.4,
+  refDispersion: 7,
+  refFresnelRange: 30,
+  refFresnelHardness: 20,
+  refFresnelFactor: 20,
+  glareRange: 30,
+  glareHardness: 20,
+  glareFactor: 90,
+  glareConvergence: 50,
+  glareOppositeFactor: 80,
+  glareAngle: -45,
+  blurRadius: 1,
+  tint: [1.0, 1.0, 1.0, 0.2], // RGBA normalized
+  shadowExpand: 25,
+  shadowFactor: 15,
+  shadowPosition: [0, -10],
+  shapeWidth: 200,
+  shapeHeight: 200,
+  shapeRadius: 80,
+  shapeRoundness: 5,
+  mergeRate: 0.05,
+  showShape1: 1,
+  step: 9,
+};
+
+export class LiquidGlassNodeRenderer {
+  constructor(gl, width, height) {
+    this.gl = gl;
+    this.width = width;
+    this.height = height;
+    this.initFramebuffers();
+    this.compileShaders();
+    this.setupQuad();
+    this.setupBlurWeights();
+  }
+
+  initFramebuffers() {
+    const gl = this.gl;
+    // 1. BG snapshot (sharp background)
+    this.bgFbo = this._createFboWithTex();
+    // 2. Blur passes
+    this.hBlurFbo = this._createFboWithTex();
+    this.vBlurFbo = this._createFboWithTex();
+  }
+
+  _createFboWithTex() {
+    const gl = this.gl;
+    const fbo = gl.createFramebuffer();
+    const tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.width, this.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    return { fbo, tex };
+  }
+
+  compileShaders() {
+    this.vertProgram = this._createProgram(vertexShaderSrc, fragmentGlassMainSrc);
+    this.hBlurProgram = this._createProgram(vertexShaderSrc, fragmentBgHBlur);
+    this.vBlurProgram = this._createProgram(vertexShaderSrc, fragmentBgVBlur);
+  }
+
+  _createProgram(vertSrc, fragSrc) {
+    const gl = this.gl;
+    function compile(type, src) {
+      const shader = gl.createShader(type);
+      gl.shaderSource(shader, src);
+      gl.compileShader(shader);
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        const error = gl.getShaderInfoLog(shader);
+        console.error(`Shader compilation error (${type === gl.VERTEX_SHADER ? 'vertex' : 'fragment'}):`, error);
+        throw new Error(error);
+      }
+      return shader;
+    }
+    const v = compile(gl.VERTEX_SHADER, vertSrc);
+    const f = compile(gl.FRAGMENT_SHADER, fragSrc);
+    const prog = gl.createProgram();
+    gl.attachShader(prog, v);
+    gl.attachShader(prog, f);
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+      const error = gl.getProgramInfoLog(prog);
+      console.error('Program linking error:', error);
+      throw new Error(error);
+    }
+    return prog;
+  }
+
+  setupQuad() {
+    const gl = this.gl;
+    // Fullscreen quad for post-processing (vec4 coordinates)
+    this.quadVBO = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.quadVBO);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+      -1, -1, 0, 1,
+       1, -1, 0, 1,
+      -1,  1, 0, 1,
+       1,  1, 0, 1
+    ]), gl.STATIC_DRAW);
+  }
+
+  setupBlurWeights() {
+    // Gaussian blur weights
+    const radius = GLASS_UNIFORMS.blurRadius;
+    this.blurWeights = new Float32Array(radius + 1);
+    let sum = 0;
+    for (let i = 0; i <= radius; i++) {
+      const weight = Math.exp(-(i * i) / (2 * radius * radius));
+      this.blurWeights[i] = weight;
+      sum += weight;
+    }
+    // Normalize weights
+    for (let i = 0; i <= radius; i++) {
+      this.blurWeights[i] /= sum;
+    }
+  }
+
+  drawQuad() {
+    const gl = this.gl;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.quadVBO);
+    const aPos = gl.getAttribLocation(gl.getParameter(gl.CURRENT_PROGRAM), "a_position");
+    if (aPos >= 0) {
+      gl.enableVertexAttribArray(aPos);
+      gl.vertexAttribPointer(aPos, 4, gl.FLOAT, false, 0, 0);
+    }
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    if (aPos >= 0) {
+      gl.disableVertexAttribArray(aPos);
+    }
+  }
+
+  setViewportSize(width, height) {
+    this.width = width;
+    this.height = height;
+    // Recreate framebuffers with new size
+    this.initFramebuffers();
+  }
+
+  /**
+   * Main function to render a "glass node"
+   * @param {number} x node x position in world coordinates
+   * @param {number} y node y position in world coordinates
+   * @param {number} width node width
+   * @param {number} height node height
+   * @param {number} z z-index for sorting
+   * @param {Function} sceneRenderCallback function to render the scene excluding this node
+   * @param {Object} camera camera object with viewProjection matrix
+   */
+  drawNode(x, y, width, height, z, sceneRenderCallback, camera) {
+    const gl = this.gl;
+
+    // Debug logging
+    if (window.DEBUG_LIQUID_GLASS) {
+      console.log('Drawing liquid glass node:', { x, y, width, height, z });
+    }
+
+    // Convert world coordinates to screen coordinates
+    const viewProjectionMatrix = camera ? camera.viewProjection : new Float32Array([
+      1, 0, 0, 0,
+      0, 1, 0, 0,
+      0, 0, 1, 0,
+      0, 0, 0, 1
+    ]);
+
+    // Calculate screen position and size
+    const screenPos = this.worldToScreen(x, y, viewProjectionMatrix);
+    const screenSize = this.worldToScreenSize(width, height, viewProjectionMatrix);
+
+    if (window.DEBUG_LIQUID_GLASS) {
+      console.log('Screen position and size:', { screenPos, screenSize });
+    }
+
+    // 1. SNAPSHOT BG (EXCLUDE NODE)
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.bgFbo.fbo);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    
+    // Render scene excluding this node
+    if (sceneRenderCallback) {
+      sceneRenderCallback();
+    }
+
+    // 2. HORIZONTAL BLUR PASS
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.hBlurFbo.fbo);
+    gl.useProgram(this.hBlurProgram);
+    
+    // Set uniforms for horizontal blur
+    const hBlurUniforms = this.getBlurUniforms(this.hBlurProgram, this.bgFbo.tex);
+    this.setBlurUniforms(hBlurUniforms);
+    
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    this.drawQuad();
+
+    // 3. VERTICAL BLUR PASS
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.vBlurFbo.fbo);
+    gl.useProgram(this.vBlurProgram);
+    
+    // Set uniforms for vertical blur
+    const vBlurUniforms = this.getBlurUniforms(this.vBlurProgram, this.hBlurFbo.tex);
+    this.setBlurUniforms(vBlurUniforms);
+    
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    this.drawQuad();
+
+    // 4. GLASS MAIN PASS
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null); // Render to main framebuffer
+    gl.useProgram(this.vertProgram);
+    
+    // Check for WebGL errors
+    const error = gl.getError();
+    if (error !== gl.NO_ERROR) {
+      console.error('WebGL error before glass pass:', error);
+    }
+    
+    // Set up scissor test to only render within node bounds
+    const scissorX = Math.max(0, Math.floor(screenPos.x - screenSize.x / 2));
+    const scissorY = Math.max(0, Math.floor(screenPos.y - screenSize.y / 2));
+    const scissorWidth = Math.min(this.width - scissorX, Math.ceil(screenSize.x));
+    const scissorHeight = Math.min(this.height - scissorY, Math.ceil(screenSize.y));
+    
+    if (window.DEBUG_LIQUID_GLASS) {
+      console.log('Scissor bounds:', { scissorX, scissorY, scissorWidth, scissorHeight });
+    }
+    
+    gl.enable(gl.SCISSOR_TEST);
+    gl.scissor(scissorX, scissorY, scissorWidth, scissorHeight);
+    
+    // Set glass uniforms
+    this.setGlassUniforms(screenPos, screenSize, camera);
+    
+    this.drawQuad();
+    
+    // Check for WebGL errors after drawing
+    const errorAfter = gl.getError();
+    if (errorAfter !== gl.NO_ERROR) {
+      console.error('WebGL error after glass pass:', errorAfter);
+    }
+    
+    gl.disable(gl.SCISSOR_TEST);
+  }
+
+  getBlurUniforms(program, sourceTexture) {
+    const gl = this.gl;
+    return {
+      u_prevPassTexture: gl.getUniformLocation(program, 'u_prevPassTexture'),
+      u_resolution: gl.getUniformLocation(program, 'u_resolution'),
+      u_blurRadius: gl.getUniformLocation(program, 'u_blurRadius'),
+      u_blurWeights: gl.getUniformLocation(program, 'u_blurWeights'),
+      sourceTexture: sourceTexture
+    };
+  }
+
+  setBlurUniforms(uniforms) {
+    const gl = this.gl;
+    gl.uniform1i(uniforms.u_prevPassTexture, 0);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, uniforms.sourceTexture);
+    gl.uniform2f(uniforms.u_resolution, this.width, this.height);
+    gl.uniform1i(uniforms.u_blurRadius, GLASS_UNIFORMS.blurRadius);
+    gl.uniform1fv(uniforms.u_blurWeights, this.blurWeights);
+  }
+
+  setGlassUniforms(screenPos, screenSize, camera) {
+    const gl = this.gl;
+    
+    // Bind textures
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, this.bgFbo.tex);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, this.vBlurFbo.tex);
+
+    // Set all glass uniforms
+    const uniforms = {
+      u_blurredBg: gl.getUniformLocation(this.vertProgram, 'u_blurredBg'),
+      u_bg: gl.getUniformLocation(this.vertProgram, 'u_bg'),
+      u_resolution: gl.getUniformLocation(this.vertProgram, 'u_resolution'),
+      u_dpr: gl.getUniformLocation(this.vertProgram, 'u_dpr'),
+      u_mouse: gl.getUniformLocation(this.vertProgram, 'u_mouse'),
+      u_mouseSpring: gl.getUniformLocation(this.vertProgram, 'u_mouseSpring'),
+      u_mergeRate: gl.getUniformLocation(this.vertProgram, 'u_mergeRate'),
+      u_shapeWidth: gl.getUniformLocation(this.vertProgram, 'u_shapeWidth'),
+      u_shapeHeight: gl.getUniformLocation(this.vertProgram, 'u_shapeHeight'),
+      u_shapeRadius: gl.getUniformLocation(this.vertProgram, 'u_shapeRadius'),
+      u_shapeRoundness: gl.getUniformLocation(this.vertProgram, 'u_shapeRoundness'),
+      u_tint: gl.getUniformLocation(this.vertProgram, 'u_tint'),
+      u_refThickness: gl.getUniformLocation(this.vertProgram, 'u_refThickness'),
+      u_refFactor: gl.getUniformLocation(this.vertProgram, 'u_refFactor'),
+      u_refDispersion: gl.getUniformLocation(this.vertProgram, 'u_refDispersion'),
+      u_refFresnelRange: gl.getUniformLocation(this.vertProgram, 'u_refFresnelRange'),
+      u_refFresnelFactor: gl.getUniformLocation(this.vertProgram, 'u_refFresnelFactor'),
+      u_refFresnelHardness: gl.getUniformLocation(this.vertProgram, 'u_refFresnelHardness'),
+      u_glareRange: gl.getUniformLocation(this.vertProgram, 'u_glareRange'),
+      u_glareConvergence: gl.getUniformLocation(this.vertProgram, 'u_glareConvergence'),
+      u_glareOppositeFactor: gl.getUniformLocation(this.vertProgram, 'u_glareOppositeFactor'),
+      u_glareFactor: gl.getUniformLocation(this.vertProgram, 'u_glareFactor'),
+      u_glareHardness: gl.getUniformLocation(this.vertProgram, 'u_glareHardness'),
+      u_glareAngle: gl.getUniformLocation(this.vertProgram, 'u_glareAngle'),
+      u_showShape1: gl.getUniformLocation(this.vertProgram, 'u_showShape1'),
+      STEP: gl.getUniformLocation(this.vertProgram, 'STEP')
+    };
+
+    // Set texture uniforms
+    gl.uniform1i(uniforms.u_blurredBg, 1);
+    gl.uniform1i(uniforms.u_bg, 0);
+
+    // Set resolution and DPR
+    gl.uniform2f(uniforms.u_resolution, this.width, this.height);
+    gl.uniform1f(uniforms.u_dpr, window.devicePixelRatio || 1);
+
+    // Set mouse position (center of node)
+    gl.uniform2f(uniforms.u_mouse, screenPos.x, screenPos.y);
+    gl.uniform2f(uniforms.u_mouseSpring, screenPos.x, screenPos.y);
+
+    // Set shape parameters
+    gl.uniform1f(uniforms.u_mergeRate, GLASS_UNIFORMS.mergeRate);
+    gl.uniform1f(uniforms.u_shapeWidth, screenSize.x);
+    gl.uniform1f(uniforms.u_shapeHeight, screenSize.y);
+    gl.uniform1f(uniforms.u_shapeRadius, GLASS_UNIFORMS.shapeRadius);
+    gl.uniform1f(uniforms.u_shapeRoundness, GLASS_UNIFORMS.shapeRoundness);
+    gl.uniform4fv(uniforms.u_tint, GLASS_UNIFORMS.tint);
+
+    // Set refraction parameters
+    gl.uniform1f(uniforms.u_refThickness, GLASS_UNIFORMS.refThickness);
+    gl.uniform1f(uniforms.u_refFactor, GLASS_UNIFORMS.refFactor);
+    gl.uniform1f(uniforms.u_refDispersion, GLASS_UNIFORMS.refDispersion);
+    gl.uniform1f(uniforms.u_refFresnelRange, GLASS_UNIFORMS.refFresnelRange);
+    gl.uniform1f(uniforms.u_refFresnelFactor, GLASS_UNIFORMS.refFresnelFactor);
+    gl.uniform1f(uniforms.u_refFresnelHardness, GLASS_UNIFORMS.refFresnelHardness);
+
+    // Set glare parameters
+    gl.uniform1f(uniforms.u_glareRange, GLASS_UNIFORMS.glareRange);
+    gl.uniform1f(uniforms.u_glareConvergence, GLASS_UNIFORMS.glareConvergence);
+    gl.uniform1f(uniforms.u_glareOppositeFactor, GLASS_UNIFORMS.glareOppositeFactor);
+    gl.uniform1f(uniforms.u_glareFactor, GLASS_UNIFORMS.glareFactor);
+    gl.uniform1f(uniforms.u_glareHardness, GLASS_UNIFORMS.glareHardness);
+    gl.uniform1f(uniforms.u_glareAngle, GLASS_UNIFORMS.glareAngle);
+
+    // Set other parameters
+    gl.uniform1i(uniforms.u_showShape1, GLASS_UNIFORMS.showShape1);
+    gl.uniform1i(uniforms.STEP, GLASS_UNIFORMS.step);
+  }
+
+  worldToScreen(worldX, worldY, viewProjectionMatrix) {
+    // The existing system already uses screen coordinates directly
+    // No conversion needed - just return the coordinates as-is
+    return { x: worldX, y: worldY };
+  }
+
+  worldToScreenSize(worldWidth, worldHeight, viewProjectionMatrix) {
+    // The existing system already uses screen coordinates directly
+    // No conversion needed - just return the size as-is
+    return { x: worldWidth, y: worldHeight };
+  }
+
+  dispose() {
+    const gl = this.gl;
+    if (this.bgFbo) {
+      gl.deleteFramebuffer(this.bgFbo.fbo);
+      gl.deleteTexture(this.bgFbo.tex);
+    }
+    if (this.hBlurFbo) {
+      gl.deleteFramebuffer(this.hBlurFbo.fbo);
+      gl.deleteTexture(this.hBlurFbo.tex);
+    }
+    if (this.vBlurFbo) {
+      gl.deleteFramebuffer(this.vBlurFbo.fbo);
+      gl.deleteTexture(this.vBlurFbo.tex);
+    }
+    if (this.quadVBO) {
+      gl.deleteBuffer(this.quadVBO);
+    }
+  }
+}

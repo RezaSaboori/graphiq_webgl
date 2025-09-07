@@ -4,6 +4,7 @@ import bgVertSrc from './shaders/background.vert?raw';
 import bgFragSrc from './shaders/background.frag?raw';
 import { InstancedNodeRenderer } from './InstancedNodeRenderer';
 import { InstancedEdgeRenderer } from './InstancedEdgeRenderer';
+import { LiquidGlassNodeRenderer } from './LiquidGlassNodeRenderer';
 
 
 // Utility to compile shaders/programs
@@ -55,6 +56,7 @@ export class NodeGraphRenderer {
 
         this.instancedRenderer = new InstancedNodeRenderer(gl);
         this.edgeRenderer = new InstancedEdgeRenderer(gl);
+        this.liquidGlassRenderer = new LiquidGlassNodeRenderer(gl, canvas.width, canvas.height);
         this.init();
     }
     init() {
@@ -102,6 +104,7 @@ export class NodeGraphRenderer {
 
     setViewportSize(width, height) {
         this.gl.viewport(0, 0, width, height);
+        this.liquidGlassRenderer.setViewportSize(width, height);
     }
 
     drawBackground(bgColor, dotColor = [0.8, 0.8, 0.8, 1.0], dotSpacing = 20.0, dotRadius = 2.5) {
@@ -149,6 +152,31 @@ export class NodeGraphRenderer {
         
         // Cleanup
         gl.disableVertexAttribArray(this.a_position);
+    }
+
+    /**
+     * Update z-order for a node (useful when dragging)
+     * @param {string} nodeId - ID of the node to update
+     * @param {number} newZ - New z-index value
+     */
+    updateNodeZOrder(nodeId, newZ) {
+        if (this.graph && this.graph.nodes.has(nodeId)) {
+            const node = this.graph.nodes.get(nodeId);
+            node.z = newZ;
+        }
+    }
+
+    /**
+     * Bring node to front (highest z-order)
+     * @param {string} nodeId - ID of the node to bring to front
+     */
+    bringNodeToFront(nodeId) {
+        if (this.graph) {
+            // Find the highest z-order among all nodes
+            const allNodes = [...this.graph.nodes.values()];
+            const maxZ = Math.max(...allNodes.map(n => n.z || 0), 0);
+            this.updateNodeZOrder(nodeId, maxZ + 1);
+        }
     }
 
     render(bgColor = [0.12, 0.12, 0.13, 1], dotColor = [0.8, 0.8, 0.8, 1.0], dotSpacing = 20.0, dotRadius = 2.5) {
@@ -214,8 +242,37 @@ export class NodeGraphRenderer {
             
             this.edgeRenderer.updateEdges(visibleEdges, visibleNodeMap);
             this.edgeRenderer.render(viewProjectionMatrix);
-            this.instancedRenderer.updateNodes(lodFilteredNodes);
+            
+            // **NEW**: Sort nodes by z-index for proper liquid glass rendering order
+            const sortedNodes = lodFilteredNodes.sort((a, b) => (a.z || 0) - (b.z || 0));
+            
+            // Render liquid glass nodes one by one with proper z-ordering
+            for (const node of sortedNodes) {
+                // Create a scene render callback that renders everything except this node
+                const sceneRenderCallback = () => {
+                    // Render background
+                    this.drawBackground(bgColor, dotColor, dotSpacing, dotRadius);
+                    
+                    // Render edges
+                    this.edgeRenderer.render(viewProjectionMatrix);
+                    
+                    // Render other nodes (excluding current node)
+                    const otherNodes = sortedNodes.filter(n => n.id !== node.id);
+                    this.instancedRenderer.updateNodes(otherNodes);
+                    this.instancedRenderer.render(viewProjectionMatrix);
+                };
+                
+                // Render liquid glass effect for this node
+                this.liquidGlassRenderer.drawNode(
+                    node.position.x, 
+                    node.position.y, 
+                    node.width || 300, 
+                    node.height || 100, 
+                    node.z || 0,
+                    sceneRenderCallback,
+                    this.camera
+                );
+            }
         }
-        this.instancedRenderer.render(viewProjectionMatrix);
     }
 }
