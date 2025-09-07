@@ -1,7 +1,8 @@
 // src/scene/DrawLoop.js
 export class DrawLoop {
-  constructor(renderer) {
+  constructor(renderer, sceneModel = null) {
     this.renderer = renderer;
+    this.sceneModel = sceneModel;
     this.isRunning = false;
     this.animationId = null;
     this.isDirty = false;
@@ -32,7 +33,18 @@ export class DrawLoop {
     if (!this.isRunning) return;
     
     if (this.isDirty) {
-      this.renderer.render();
+      // Get background configuration from scene model or use defaults
+      const backgroundConfig = this.sceneModel?.getBackgroundConfig?.();
+      if (backgroundConfig) {
+        this.renderer.render(
+          backgroundConfig.backgroundColor,
+          backgroundConfig.dotColor,
+          backgroundConfig.dotSpacing,
+          backgroundConfig.dotRadius
+        );
+      } else {
+        this.renderer.render();
+      }
       this.isDirty = false;
     }
     

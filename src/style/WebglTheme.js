@@ -56,3 +56,11 @@ export const ARROW_STYLE = {
     typeFontWeight: 600,
     typeBackgroundColor: "#222"
 };
+
+// Background Styles
+export const BACKGROUND_STYLE = {
+    backgroundColor: "#1e1e1e",     // Dark background color
+    dotColor: "#404040",            // Dot color (lighter gray)
+    dotSpacing: 20.0,               // Distance between dots in pixels
+    dotRadius: 2.5                  // Radius of each dot in pixels
+};

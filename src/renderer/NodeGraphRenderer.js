@@ -1,5 +1,6 @@
 import nodeVertSrc from './shaders/node.vert?raw';
 import nodeFragSrc from './shaders/node.frag?raw';
+import bgVertSrc from './shaders/background.vert?raw';
 import bgFragSrc from './shaders/background.frag?raw';
 import { InstancedNodeRenderer } from './InstancedNodeRenderer';
 import { InstancedEdgeRenderer } from './InstancedEdgeRenderer';
@@ -59,12 +60,13 @@ export class NodeGraphRenderer {
     init() {
         const gl = this.gl;
 
-        // --- Background program (fullscreen quad, no vertex shader needed) ---
-        const bgQuadVertSrc = `#version 300 es
-        in vec2 a_position;
-        void main() { gl_Position = vec4(a_position, 0.0, 1.0); }`;
-        this.bgProg = createProgram(gl, bgQuadVertSrc, bgFragSrc);
+        // --- Background program (fullscreen quad with dotted pattern) ---
+        this.bgProg = createProgram(gl, bgVertSrc, bgFragSrc);
         this.u_bgColor = gl.getUniformLocation(this.bgProg, 'u_bgColor');
+        this.u_dotColor = gl.getUniformLocation(this.bgProg, 'u_dotColor');
+        this.u_resolution = gl.getUniformLocation(this.bgProg, 'u_resolution');
+        this.u_dotSpacing = gl.getUniformLocation(this.bgProg, 'u_dotSpacing');
+        this.u_dotRadius = gl.getUniformLocation(this.bgProg, 'u_dotRadius');
 
         this.bgVbo = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, this.bgVbo);
@@ -102,7 +104,7 @@ export class NodeGraphRenderer {
         this.gl.viewport(0, 0, width, height);
     }
 
-    drawBackground(bgColor) {
+    drawBackground(bgColor, dotColor = [0.8, 0.8, 0.8, 1.0], dotSpacing = 20.0, dotRadius = 2.5) {
         const gl = this.gl;
         gl.useProgram(this.bgProg);
         gl.bindBuffer(gl.ARRAY_BUFFER, this.bgVbo);
@@ -111,7 +113,13 @@ export class NodeGraphRenderer {
         gl.enableVertexAttribArray(aPos);
         gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
 
+        // Set uniforms for dotted background
         gl.uniform4fv(this.u_bgColor, bgColor);
+        gl.uniform4fv(this.u_dotColor, dotColor);
+        gl.uniform2f(this.u_resolution, this.canvas.width, this.canvas.height);
+        gl.uniform1f(this.u_dotSpacing, dotSpacing);
+        gl.uniform1f(this.u_dotRadius, dotRadius);
+        
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         gl.disableVertexAttribArray(aPos);
     }
@@ -143,11 +151,11 @@ export class NodeGraphRenderer {
         gl.disableVertexAttribArray(this.a_position);
     }
 
-    render(bgColor = [0.12, 0.12, 0.13, 1]) {
+    render(bgColor = [0.12, 0.12, 0.13, 1], dotColor = [0.8, 0.8, 0.8, 1.0], dotSpacing = 20.0, dotRadius = 2.5) {
         const gl = this.gl;
         gl.clear(gl.COLOR_BUFFER_BIT);
 
-        this.drawBackground(bgColor);
+        this.drawBackground(bgColor, dotColor, dotSpacing, dotRadius);
 
         // Use camera's viewProjection matrix for proper coordinate transformation
         const viewProjectionMatrix = this.camera ? this.camera.viewProjection : new Float32Array([

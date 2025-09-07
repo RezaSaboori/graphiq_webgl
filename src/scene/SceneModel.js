@@ -12,6 +12,7 @@ export class SceneModel {
     this.hoveredNode = null;
     this.nodeWidth = 300;
     this.background = null;
+    this.backgroundConfig = null; // Store full background configuration
     
     // Mark initial dirty for first render
     this.markDirty();
@@ -99,6 +100,11 @@ export class SceneModel {
     this.markDirty();
   }
 
+  setBackgroundConfig(config) {
+    this.backgroundConfig = config;
+    this.markDirty();
+  }
+
   // Rendering state
   markDirty() {
     if (this.onDirty) {
@@ -130,5 +136,9 @@ export class SceneModel {
 
   getBackground() {
     return this.background;
+  }
+
+  getBackgroundConfig() {
+    return this.backgroundConfig;
   }
 }

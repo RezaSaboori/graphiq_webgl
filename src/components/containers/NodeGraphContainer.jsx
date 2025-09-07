@@ -7,6 +7,7 @@ import { SceneModel } from '../../scene/SceneModel';
 import { DrawLoop } from '../../scene/DrawLoop';
 import { Camera } from '../../scene/Camera';
 import { GraphDataService } from '../../services/GraphDataService';
+import { BACKGROUND_STYLE } from '../../style/WebglTheme';
 import NodeGraphCanvas from '../NodeGraphCanvas';
 
 /**
@@ -57,13 +58,16 @@ export default function NodeGraphContainer({ graphData, nodeWidth = 300 }) {
     renderer.spatialIndex = spatial; // Save reference for frustum culling
     renderer.setViewportSize(canvasWidth, canvasHeight); // Set initial WebGL viewport
     
-    const drawLoop = new DrawLoop(renderer);
+    const drawLoop = new DrawLoop(renderer, null); // Will be updated after sceneModel is created
     drawLoopRef.current = drawLoop;
 
     // 6. Create scene model (centralized state management)
     const sceneModel = new SceneModel(graph, spatial, renderer, () => drawLoop.markDirty());
     sceneModelRef.current = sceneModel;
     sceneModel.camera = camera; // Make camera accessible for pan/zoom/fit
+    
+    // Update drawLoop with sceneModel reference
+    drawLoop.sceneModel = sceneModel;
 
     // 7. Initialize spatial index
     spatial.rebuild([...graph.nodes.values()]);
@@ -126,15 +130,26 @@ export default function NodeGraphContainer({ graphData, nodeWidth = 300 }) {
     const nodes = [...graph.nodes.values()];
     camera.fitToView(nodes);
     
-    // Extract background color using the service
+    // Set up dotted background configuration
+    const backgroundConfig = {
+      backgroundColor: BACKGROUND_STYLE.backgroundColor ? [...hexToRgbNorm(BACKGROUND_STYLE.backgroundColor), 1] : [0.12, 0.12, 0.13, 1],
+      dotColor: BACKGROUND_STYLE.dotColor ? [...hexToRgbNorm(BACKGROUND_STYLE.dotColor), 1] : [0.8, 0.8, 0.8, 1.0],
+      dotSpacing: BACKGROUND_STYLE.dotSpacing || 20.0,
+      dotRadius: BACKGROUND_STYLE.dotRadius || 2.5
+    };
+    sceneModel.setBackgroundConfig(backgroundConfig);
+    
+    // Extract background color using the service (for compatibility)
     const bgHex = GraphDataService.extractBackgroundColor(graphData);
     const bg = bgHex ? [...hexToRgbNorm(bgHex), 1] : undefined;
     if (bg) {
       sceneModel.setBackground(bg);
-      renderer.render(bg); // Initial render with background
-    } else {
-      drawLoop.markDirty(); // Mark dirty for initial render
+      // Update background config with extracted color
+      backgroundConfig.backgroundColor = bg;
+      sceneModel.setBackgroundConfig(backgroundConfig);
     }
+    
+    drawLoop.markDirty(); // Mark dirty for initial render
 
     // 12. Start the draw loop
     drawLoop.start();
