@@ -111,6 +111,11 @@ export default function NodeGraphVisualization({ graphData, nodeWidth = 300 }) {
       canvas.style.cursor = '';
     });
 
+    // Add camera change listener for pan/zoom
+    manager.on('cameraChanged', () => {
+      drawLoop.markDirty();
+    });
+
     // 10. Handle resize for future changes
     const handleResizeUpdate = () => {
       const box = canvas.parentElement ?? canvas;
