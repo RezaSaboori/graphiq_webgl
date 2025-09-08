@@ -2,7 +2,13 @@
 
 import instancedNodeVert from './shaders/instancedNode.vert?raw';
 import instancedNodeFrag from './shaders/instancedNode.frag?raw';
-import { hexToRgbNorm } from './NodeGraphRenderer';
+
+function hexToRgbNorm(hex) {
+    hex = hex.replace('#','');
+    if(hex.length===3) hex = hex.split('').map(x=>x+x).join('');
+    const num = parseInt(hex, 16);
+    return [(num>>16 & 255)/255, (num>>8 & 255)/255, (num&255)/255];
+}
 
 export class InstancedNodeRenderer {
     constructor(gl, maxNodes = 10000) {
