@@ -101,6 +101,9 @@ export class NodeGraphRenderer {
     }
 
     setViewportSize(width, height) {
+        // Ensure canvas/backbuffer, viewport, and glass FBOs stay in sync
+        this.canvas.width = width;
+        this.canvas.height = height;
         this.gl.viewport(0, 0, width, height);
         this.liquidGlassRenderer.setViewportSize(width, height);
     }
@@ -253,6 +256,20 @@ export class NodeGraphRenderer {
                     
                     // Render edges
                     this.edgeRenderer.render(viewProjectionMatrix);
+
+                    // Render other nodes (excluding current node) as simple rectangles
+                    const otherNodes = sortedNodes.filter(n => n.id !== node.id);
+                    for (const other of otherNodes) {
+                        const color = [...hexToRgbNorm(other.color || '#444'), 1];
+                        this.drawNode(
+                            other.position.x,
+                            other.position.y,
+                            other.width || 300,
+                            other.height || 100,
+                            color,
+                            viewProjectionMatrix
+                        );
+                    }
                 };
                 
                 // Render liquid glass effect for this node
