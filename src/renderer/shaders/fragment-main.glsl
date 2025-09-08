@@ -3,6 +3,8 @@
 precision highp float;
 
 #define PI (3.14159265359)
+// Maximum number of nodes supported
+#define MAX_NODES 16
 
 const float N_R = 1.0 - 0.02;
 const float N_G = 1.0;
@@ -36,6 +38,15 @@ uniform float u_glareAngle;
 uniform int u_showShape1;
 
 uniform int STEP;
+
+// Per-node uniforms
+uniform int u_nodeCount;
+uniform vec2 u_nodePositions[MAX_NODES];
+uniform float u_nodeWidths[MAX_NODES];
+uniform float u_nodeHeights[MAX_NODES];
+uniform float u_nodeRadius[MAX_NODES];
+uniform float u_nodeRoundness[MAX_NODES];
+uniform int u_nodeZIndex[MAX_NODES];
 
 out vec4 fragColor;
 
@@ -110,12 +121,9 @@ float smin(float a, float b, float k) {
 }
 
 float mainSDF(vec2 p1, vec2 p2, vec2 p) {
-  vec2 p1n = p1 + p / u_resolution.y;
+  // Backward-compat: single-node path using legacy uniforms
   vec2 p2n = p2 + p / u_resolution.y;
-
-  float d1 = u_showShape1 == 1 ? sdCircle(p1n, 100.0 * u_dpr / u_resolution.y) : 1.0;
-  // float d2 = sdSuperellipse(p2, 200.0 / u_resolution.y, 4.0).x;
-  float d2 = roundedRectSDF(
+  float dRect = roundedRectSDF(
     p2n,
     vec2(0.0),
     u_shapeWidth / u_resolution.y,
@@ -123,8 +131,42 @@ float mainSDF(vec2 p1, vec2 p2, vec2 p) {
     u_shapeRadius / u_resolution.y,
     u_shapeRoundness
   );
+  return dRect;
+}
 
-  return smin(d1, d2, u_mergeRate);
+float getNodeSDF(int nodeIndex, vec2 p) {
+  vec2 nodePos = (u_nodePositions[nodeIndex] - u_resolution.xy * 0.5) / u_resolution.y;
+  vec2 pn = nodePos + p / u_resolution.y;
+  return roundedRectSDF(
+    pn,
+    vec2(0.0),
+    u_nodeWidths[nodeIndex] / u_resolution.y,
+    u_nodeHeights[nodeIndex] / u_resolution.y,
+    u_nodeRadius[nodeIndex] / u_resolution.y,
+    u_nodeRoundness[nodeIndex]
+  );
+}
+
+int getClosestNode(vec2 p) {
+  float minDist = 1e20;
+  int closestNode = -1;
+  for (int i = 0; i < MAX_NODES; i++) {
+    if (i >= u_nodeCount) break;
+    float dist = getNodeSDF(i, p);
+    if (dist < minDist) {
+      minDist = dist;
+      closestNode = i;
+    }
+  }
+  return closestNode;
+}
+
+vec2 getNodeNormal(int nodeIndex, vec2 p) {
+  float eps = 0.0005;
+  vec2 e = vec2(eps, 0.0);
+  float dx = getNodeSDF(nodeIndex, p + e.xy) - getNodeSDF(nodeIndex, p - e.xy);
+  float dy = getNodeSDF(nodeIndex, p + e.yx) - getNodeSDF(nodeIndex, p - e.yx);
+  return normalize(vec2(dx, dy));
 }
 
 vec2 getNormal(vec2 p1, vec2 p2, vec2 p) {
@@ -305,12 +347,19 @@ vec4 getTextureDispersion(sampler2D tex, vec2 offset, float factor) {
 
 void main() {
   vec2 u_resolution1x = u_resolution.xy / u_dpr;
-  // center of shape 1
+  // Legacy single-node parameters
   vec2 p1 = (vec2(0, 0) - u_resolution.xy * 0.5) / u_resolution.y;
-  // center of shape 2
   vec2 p2 = (vec2(0, 0) - u_mouseSpring) / u_resolution.y;
-  // merged shape
-  float merged = mainSDF(p1, p2, gl_FragCoord.xy);
+
+  // Prefer per-node path if u_nodeCount > 0
+  int closestNodeIndex = getClosestNode(gl_FragCoord.xy);
+  float merged = 1e20;
+  if (closestNodeIndex >= 0) {
+    merged = getNodeSDF(closestNodeIndex, gl_FragCoord.xy);
+  } else {
+    // Fallback to legacy single-node path
+    merged = mainSDF(p1, p2, gl_FragCoord.xy);
+  }
 
   vec4 outColor;
   // step 0: sdfs
@@ -341,7 +390,9 @@ void main() {
     // step 1: normals
   } else if (STEP <= 2) {
     if (merged < 0.0) {
-      vec2 normal = getNormal(p1, p2, gl_FragCoord.xy);
+      vec2 normal = closestNodeIndex >= 0
+        ? getNodeNormal(closestNodeIndex, gl_FragCoord.xy)
+        : getNormal(p1, p2, gl_FragCoord.xy);
       vec3 normalColor = vec2ToRgb(normal);
 
       float l = length(normal);
@@ -374,7 +425,9 @@ void main() {
     // step3: edge factor with normal
   } else if (STEP <= 4) {
     if (merged < 0.0) {
-      vec2 normal = getNormal(p1, p2, gl_FragCoord.xy);
+      vec2 normal = closestNodeIndex >= 0
+        ? getNodeNormal(closestNodeIndex, gl_FragCoord.xy)
+        : getNormal(p1, p2, gl_FragCoord.xy);
       vec3 normalColor = vec2ToRgb(normal);
       float nmerged = -1.0 * (merged * u_resolution1x.y);
 
@@ -399,7 +452,9 @@ void main() {
     }
   } else if (STEP <= 6) {
     if (merged < 0.0) {
-      vec2 normal = getNormal(p1, p2, gl_FragCoord.xy);
+      vec2 normal = closestNodeIndex >= 0
+        ? getNodeNormal(closestNodeIndex, gl_FragCoord.xy)
+        : getNormal(p1, p2, gl_FragCoord.xy);
       float nmerged = -1.0 * (merged * u_resolution1x.y);
 
       float x_R_ratio = 1.0 - nmerged / u_refThickness;
@@ -538,7 +593,9 @@ void main() {
         // );
         // outColor.a = 1.0;
       } else {
-        vec2 normal = getNormal(p1, p2, gl_FragCoord.xy);
+        vec2 normal = closestNodeIndex >= 0
+          ? getNodeNormal(closestNodeIndex, gl_FragCoord.xy)
+          : getNormal(p1, p2, gl_FragCoord.xy);
 
         float glareAngle = (vec2ToAngle(normalize(normal)) - PI / 4.0 + u_glareAngle) * 2.0;
         int glareFarside = 0;
@@ -626,7 +683,9 @@ void main() {
         outColor = mix(outColor, vec4(u_tint.r, u_tint.g, u_tint.b, 1.0), u_tint.a * 0.8);
       } else {
         // calculate parameters
-        vec2 normal = getNormal(p1, p2, gl_FragCoord.xy);
+        vec2 normal = closestNodeIndex >= 0
+          ? getNodeNormal(closestNodeIndex, gl_FragCoord.xy)
+          : getNormal(p1, p2, gl_FragCoord.xy);
         vec4 blurredPixel = getTextureDispersion(
           u_blurredBg,
           -normal *

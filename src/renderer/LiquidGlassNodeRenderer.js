@@ -247,7 +247,7 @@ export class LiquidGlassNodeRenderer {
     gl.scissor(scissorX, scissorY, scissorWidth, scissorHeight);
     
     // Set glass uniforms
-    this.setGlassUniforms(screenPos, screenSize, camera);
+    this.setGlassUniforms(screenPos, screenSize, camera, z);
     
     this.drawQuad();
     
@@ -281,7 +281,7 @@ export class LiquidGlassNodeRenderer {
     gl.uniform1fv(uniforms.u_blurWeights, this.blurWeights);
   }
 
-  setGlassUniforms(screenPos, screenSize, camera) {
+  setGlassUniforms(screenPos, screenSize, camera, zIndex) {
     const gl = this.gl;
     
     // Bind textures
@@ -317,7 +317,15 @@ export class LiquidGlassNodeRenderer {
       u_glareHardness: gl.getUniformLocation(this.vertProgram, 'u_glareHardness'),
       u_glareAngle: gl.getUniformLocation(this.vertProgram, 'u_glareAngle'),
       u_showShape1: gl.getUniformLocation(this.vertProgram, 'u_showShape1'),
-      STEP: gl.getUniformLocation(this.vertProgram, 'STEP')
+      STEP: gl.getUniformLocation(this.vertProgram, 'STEP'),
+      // Per-node arrays (use [0] for base address)
+      u_nodeCount: gl.getUniformLocation(this.vertProgram, 'u_nodeCount'),
+      u_nodePositions0: gl.getUniformLocation(this.vertProgram, 'u_nodePositions[0]'),
+      u_nodeWidths0: gl.getUniformLocation(this.vertProgram, 'u_nodeWidths[0]'),
+      u_nodeHeights0: gl.getUniformLocation(this.vertProgram, 'u_nodeHeights[0]'),
+      u_nodeRadius0: gl.getUniformLocation(this.vertProgram, 'u_nodeRadius[0]'),
+      u_nodeRoundness0: gl.getUniformLocation(this.vertProgram, 'u_nodeRoundness[0]'),
+      u_nodeZIndex0: gl.getUniformLocation(this.vertProgram, 'u_nodeZIndex[0]')
     };
 
     // Set texture uniforms
@@ -361,6 +369,34 @@ export class LiquidGlassNodeRenderer {
     // Set other parameters
     gl.uniform1i(uniforms.u_showShape1, GLASS_UNIFORMS.showShape1);
     gl.uniform1i(uniforms.STEP, GLASS_UNIFORMS.step);
+
+    // Per-node data (pass a single node for now)
+    if (
+      uniforms.u_nodeCount &&
+      uniforms.u_nodePositions0 &&
+      uniforms.u_nodeWidths0 &&
+      uniforms.u_nodeHeights0 &&
+      uniforms.u_nodeRadius0 &&
+      uniforms.u_nodeRoundness0 &&
+      uniforms.u_nodeZIndex0
+    ) {
+      const centerX = screenPos.x;
+      const centerY = this.height - screenPos.y;
+      const positions = new Float32Array([centerX, centerY]);
+      const widths = new Float32Array([screenSize.x]);
+      const heights = new Float32Array([screenSize.y]);
+      const radii = new Float32Array([GLASS_UNIFORMS.shapeRadius]);
+      const roundness = new Float32Array([GLASS_UNIFORMS.shapeRoundness]);
+      const zIndices = new Int32Array([typeof zIndex === 'number' ? zIndex : 0]);
+
+      gl.uniform1i(uniforms.u_nodeCount, 1);
+      gl.uniform2fv(uniforms.u_nodePositions0, positions);
+      gl.uniform1fv(uniforms.u_nodeWidths0, widths);
+      gl.uniform1fv(uniforms.u_nodeHeights0, heights);
+      gl.uniform1fv(uniforms.u_nodeRadius0, radii);
+      gl.uniform1fv(uniforms.u_nodeRoundness0, roundness);
+      gl.uniform1iv(uniforms.u_nodeZIndex0, zIndices);
+    }
   }
 
   worldToScreen(worldX, worldY, camera) {
