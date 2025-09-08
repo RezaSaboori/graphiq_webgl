@@ -163,25 +163,26 @@ export class LiquidGlassNodeRenderer {
   drawNode(x, y, width, height, z, sceneRenderCallback, camera) {
     const gl = this.gl;
 
-    // Debug logging
+    // Convert world coordinates to screen coordinates using camera
+    const screenPos = this.worldToScreen(x, y, camera);
+    const screenSize = this.worldToScreenSize(width, height, camera);
+
+    // Optional debug logging
     if (window.DEBUG_LIQUID_GLASS) {
-      console.log('Drawing liquid glass node:', { x, y, width, height, z });
+      console.log('Drawing liquid glass node:', {
+        world: { x, y, width, height, z },
+        screen: { pos: screenPos, size: screenSize },
+      });
     }
 
-    // Convert world coordinates to screen coordinates
-    const viewProjectionMatrix = camera ? camera.viewProjection : new Float32Array([
-      1, 0, 0, 0,
-      0, 1, 0, 0,
-      0, 0, 1, 0,
-      0, 0, 0, 1
-    ]);
-
-    // Calculate screen position and size
-    const screenPos = this.worldToScreen(x, y, viewProjectionMatrix);
-    const screenSize = this.worldToScreenSize(width, height, viewProjectionMatrix);
-
-    if (window.DEBUG_LIQUID_GLASS) {
-      console.log('Screen position and size:', { screenPos, screenSize });
+    // Early-out if completely out of viewport
+    if (
+      screenPos.x + screenSize.x * 0.5 < 0 ||
+      screenPos.x - screenSize.x * 0.5 > this.width ||
+      screenPos.y + screenSize.y * 0.5 < 0 ||
+      screenPos.y - screenSize.y * 0.5 > this.height
+    ) {
+      return;
     }
 
     // 1. SNAPSHOT BG (EXCLUDE NODE)
@@ -229,10 +230,14 @@ export class LiquidGlassNodeRenderer {
     }
     
     // Set up scissor test to only render within node bounds
-    const scissorX = Math.max(0, Math.floor(screenPos.x - screenSize.x / 2));
-    const scissorY = Math.max(0, Math.floor(screenPos.y - screenSize.y / 2));
-    const scissorWidth = Math.min(this.width - scissorX, Math.ceil(screenSize.x));
-    const scissorHeight = Math.min(this.height - scissorY, Math.ceil(screenSize.y));
+    // WebGL scissor origin is bottom-left; convert from top-left screen Y
+    const halfW = screenSize.x * 0.5;
+    const halfH = screenSize.y * 0.5;
+    const scissorX = Math.max(0, Math.floor(screenPos.x - halfW));
+    const scissorYTopLeft = Math.max(0, Math.floor(screenPos.y - halfH));
+    const scissorY = Math.max(0, Math.floor(this.height - (scissorYTopLeft + screenSize.y)));
+    const scissorWidth = Math.max(0, Math.min(this.width - scissorX, Math.ceil(screenSize.x)));
+    const scissorHeight = Math.max(0, Math.min(this.height - scissorY, Math.ceil(screenSize.y)));
     
     if (window.DEBUG_LIQUID_GLASS) {
       console.log('Scissor bounds:', { scissorX, scissorY, scissorWidth, scissorHeight });
@@ -323,9 +328,11 @@ export class LiquidGlassNodeRenderer {
     gl.uniform2f(uniforms.u_resolution, this.width, this.height);
     gl.uniform1f(uniforms.u_dpr, window.devicePixelRatio || 1);
 
-    // Set mouse position (center of node)
-    gl.uniform2f(uniforms.u_mouse, screenPos.x, screenPos.y);
-    gl.uniform2f(uniforms.u_mouseSpring, screenPos.x, screenPos.y);
+    // Set mouse/center position (convert to bottom-left origin)
+    const centerX = screenPos.x;
+    const centerY = this.height - screenPos.y;
+    gl.uniform2f(uniforms.u_mouse, centerX, centerY);
+    gl.uniform2f(uniforms.u_mouseSpring, centerX, centerY);
 
     // Set shape parameters
     gl.uniform1f(uniforms.u_mergeRate, GLASS_UNIFORMS.mergeRate);
@@ -356,16 +363,20 @@ export class LiquidGlassNodeRenderer {
     gl.uniform1i(uniforms.STEP, GLASS_UNIFORMS.step);
   }
 
-  worldToScreen(worldX, worldY, viewProjectionMatrix) {
-    // The existing system already uses screen coordinates directly
-    // No conversion needed - just return the coordinates as-is
-    return { x: worldX, y: worldY };
+  worldToScreen(worldX, worldY, camera) {
+    if (!camera || typeof camera.worldToScreen !== 'function') {
+      return { x: worldX, y: worldY };
+    }
+    return camera.worldToScreen(worldX, worldY);
   }
 
-  worldToScreenSize(worldWidth, worldHeight, viewProjectionMatrix) {
-    // The existing system already uses screen coordinates directly
-    // No conversion needed - just return the size as-is
-    return { x: worldWidth, y: worldHeight };
+  worldToScreenSize(worldWidth, worldHeight, camera) {
+    if (!camera || typeof camera.worldToScreen !== 'function') {
+      return { x: worldWidth, y: worldHeight };
+    }
+    const p1 = camera.worldToScreen(0, 0);
+    const p2 = camera.worldToScreen(worldWidth, worldHeight);
+    return { x: Math.abs(p2.x - p1.x), y: Math.abs(p2.y - p1.y) };
   }
 
   dispose() {

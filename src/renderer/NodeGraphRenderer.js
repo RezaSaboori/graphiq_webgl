@@ -2,6 +2,7 @@ import nodeVertSrc from './shaders/node.vert?raw';
 import nodeFragSrc from './shaders/node.frag?raw';
 import bgVertSrc from './shaders/background.vert?raw';
 import bgFragSrc from './shaders/background.frag?raw';
+import { InstancedNodeRenderer } from './InstancedNodeRenderer';
 import { InstancedEdgeRenderer } from './InstancedEdgeRenderer';
 import { LiquidGlassNodeRenderer } from './LiquidGlassNodeRenderer';
 
@@ -53,6 +54,7 @@ export class NodeGraphRenderer {
         this.camera = null; // Will be set by the main component
         this.spatialIndex = null; // Will be set by the main component
 
+        this.instancedRenderer = new InstancedNodeRenderer(gl);
         this.edgeRenderer = new InstancedEdgeRenderer(gl);
         this.liquidGlassRenderer = new LiquidGlassNodeRenderer(gl, canvas.width, canvas.height);
         this.init();
@@ -101,9 +103,6 @@ export class NodeGraphRenderer {
     }
 
     setViewportSize(width, height) {
-        // Ensure canvas/backbuffer, viewport, and glass FBOs stay in sync
-        this.canvas.width = width;
-        this.canvas.height = height;
         this.gl.viewport(0, 0, width, height);
         this.liquidGlassRenderer.setViewportSize(width, height);
     }
@@ -195,7 +194,7 @@ export class NodeGraphRenderer {
         ]);
 
         // Edges first (if graph available)
-        if (this.graph && this.edgeRenderer) {
+        if (this.graph && this.edgeRenderer && this.instancedRenderer) {
             // **NEW**: Use visible nodes only for frustum culling
             const allNodes = [...this.graph.nodes.values()];
             let visibleNodes = this.spatialIndex && this.camera ?
@@ -256,20 +255,11 @@ export class NodeGraphRenderer {
                     
                     // Render edges
                     this.edgeRenderer.render(viewProjectionMatrix);
-
-                    // Render other nodes (excluding current node) as simple rectangles
+                    
+                    // Render other nodes (excluding current node)
                     const otherNodes = sortedNodes.filter(n => n.id !== node.id);
-                    for (const other of otherNodes) {
-                        const color = [...hexToRgbNorm(other.color || '#444'), 1];
-                        this.drawNode(
-                            other.position.x,
-                            other.position.y,
-                            other.width || 300,
-                            other.height || 100,
-                            color,
-                            viewProjectionMatrix
-                        );
-                    }
+                    this.instancedRenderer.updateNodes(otherNodes);
+                    this.instancedRenderer.render(viewProjectionMatrix);
                 };
                 
                 // Render liquid glass effect for this node
