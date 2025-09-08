@@ -33,13 +33,27 @@ export const GLASS_UNIFORMS = {
 
 export class LiquidGlassNodeRenderer {
   constructor(gl, width, height) {
+    console.log("LiquidGlassNodeRenderer initializing...", { width, height });
+    if (!gl) {
+      throw new Error("WebGL context is null");
+    }
     this.gl = gl;
     this.width = width;
     this.height = height;
-    this.initFramebuffers();
-    this.compileShaders();
-    this.setupQuad();
-    this.setupBlurWeights();
+    try {
+      this.initFramebuffers();
+      console.log("Framebuffers initialized");
+      this.compileShaders();
+      console.log("Shaders compiled successfully");
+      this.setupQuad();
+      console.log("Quad setup complete");
+      this.setupBlurWeights();
+      console.log("Blur weights setup complete");
+      console.log("LiquidGlassNodeRenderer initialized successfully");
+    } catch (error) {
+      console.error("LiquidGlassNodeRenderer initialization failed:", error);
+      throw error;
+    }
   }
 
   initFramebuffers() {
@@ -76,28 +90,36 @@ export class LiquidGlassNodeRenderer {
   _createProgram(vertSrc, fragSrc) {
     const gl = this.gl;
     function compile(type, src) {
+      console.log(`Compiling ${type === gl.VERTEX_SHADER ? 'vertex' : 'fragment'} shader...`);
       const shader = gl.createShader(type);
       gl.shaderSource(shader, src);
       gl.compileShader(shader);
       if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
         const error = gl.getShaderInfoLog(shader);
         console.error(`Shader compilation error (${type === gl.VERTEX_SHADER ? 'vertex' : 'fragment'}):`, error);
+        console.error("Shader source:", src);
         throw new Error(error);
       }
       return shader;
     }
-    const v = compile(gl.VERTEX_SHADER, vertSrc);
-    const f = compile(gl.FRAGMENT_SHADER, fragSrc);
-    const prog = gl.createProgram();
-    gl.attachShader(prog, v);
-    gl.attachShader(prog, f);
-    gl.linkProgram(prog);
-    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
-      const error = gl.getProgramInfoLog(prog);
-      console.error('Program linking error:', error);
-      throw new Error(error);
+    try {
+      const v = compile(gl.VERTEX_SHADER, vertSrc);
+      const f = compile(gl.FRAGMENT_SHADER, fragSrc);
+      const prog = gl.createProgram();
+      gl.attachShader(prog, v);
+      gl.attachShader(prog, f);
+      gl.linkProgram(prog);
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+        const error = gl.getProgramInfoLog(prog);
+        console.error('Program linking error:', error);
+        throw new Error(error);
+      }
+      console.log("Shader program created successfully");
+      return prog;
+    } catch (error) {
+      console.error("Shader program creation failed:", error);
+      throw error;
     }
-    return prog;
   }
 
   setupQuad() {

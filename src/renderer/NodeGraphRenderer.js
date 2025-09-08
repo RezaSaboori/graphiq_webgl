@@ -46,14 +46,34 @@ export function computeLOD(camera) {
 
 export class NodeGraphRenderer {
     constructor(gl, canvas) {
+        console.log("NodeGraphRenderer initializing...");
+        if (!gl) {
+            throw new Error("WebGL context is null in NodeGraphRenderer");
+        }
+        if (!canvas) {
+            throw new Error("Canvas is null in NodeGraphRenderer");
+        }
+        console.log("WebGL context info:", {
+            version: gl.getParameter(gl.VERSION),
+            vendor: gl.getParameter(gl.VENDOR),
+            renderer: gl.getParameter(gl.RENDERER)
+        });
         this.gl = gl;
         this.canvas = canvas;
         this.camera = null; // Will be set by the main component
         this.spatialIndex = null; // Will be set by the main component
 
-        this.edgeRenderer = new InstancedEdgeRenderer(gl);
-        this.liquidGlassRenderer = new LiquidGlassNodeRenderer(gl, canvas.width, canvas.height);
-        this.init();
+        try {
+            this.edgeRenderer = new InstancedEdgeRenderer(gl);
+            console.log("InstancedEdgeRenderer created");
+            this.liquidGlassRenderer = new LiquidGlassNodeRenderer(gl, canvas.width, canvas.height);
+            console.log("LiquidGlassNodeRenderer created");
+            this.init();
+            console.log("NodeGraphRenderer initialization complete");
+        } catch (error) {
+            console.error("NodeGraphRenderer initialization failed:", error);
+            throw error;
+        }
     }
     init() {
         const gl = this.gl;
