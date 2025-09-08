@@ -2,7 +2,6 @@ import nodeVertSrc from './shaders/node.vert?raw';
 import nodeFragSrc from './shaders/node.frag?raw';
 import bgVertSrc from './shaders/background.vert?raw';
 import bgFragSrc from './shaders/background.frag?raw';
-import { InstancedNodeRenderer } from './InstancedNodeRenderer';
 import { InstancedEdgeRenderer } from './InstancedEdgeRenderer';
 import { LiquidGlassNodeRenderer } from './LiquidGlassNodeRenderer';
 
@@ -54,7 +53,6 @@ export class NodeGraphRenderer {
         this.camera = null; // Will be set by the main component
         this.spatialIndex = null; // Will be set by the main component
 
-        this.instancedRenderer = new InstancedNodeRenderer(gl);
         this.edgeRenderer = new InstancedEdgeRenderer(gl);
         this.liquidGlassRenderer = new LiquidGlassNodeRenderer(gl, canvas.width, canvas.height);
         this.init();
@@ -194,7 +192,7 @@ export class NodeGraphRenderer {
         ]);
 
         // Edges first (if graph available)
-        if (this.graph && this.edgeRenderer && this.instancedRenderer) {
+        if (this.graph && this.edgeRenderer) {
             // **NEW**: Use visible nodes only for frustum culling
             const allNodes = [...this.graph.nodes.values()];
             let visibleNodes = this.spatialIndex && this.camera ?
@@ -255,11 +253,6 @@ export class NodeGraphRenderer {
                     
                     // Render edges
                     this.edgeRenderer.render(viewProjectionMatrix);
-                    
-                    // Render other nodes (excluding current node)
-                    const otherNodes = sortedNodes.filter(n => n.id !== node.id);
-                    this.instancedRenderer.updateNodes(otherNodes);
-                    this.instancedRenderer.render(viewProjectionMatrix);
                 };
                 
                 // Render liquid glass effect for this node
