@@ -68,6 +68,22 @@ export class LiquidGlassNodeRenderer {
   }
 
   compileShaders() {
+    // Debug shader source presence
+    if (window.DEBUG_LIQUID_GLASS) {
+      try {
+        console.log('🔍 Checking shader imports...');
+        console.log('vertexShaderSrc length:', vertexShaderSrc ? vertexShaderSrc.length : 'MISSING');
+        console.log('fragmentGlassMainSrc length:', fragmentGlassMainSrc ? fragmentGlassMainSrc.length : 'MISSING');
+        console.log('fragmentBgHBlur length:', fragmentBgHBlur ? fragmentBgHBlur.length : 'MISSING');
+        console.log('fragmentBgVBlur length:', fragmentBgVBlur ? fragmentBgVBlur.length : 'MISSING');
+      } catch (_) {}
+    }
+
+    if (!vertexShaderSrc || !fragmentGlassMainSrc) {
+      console.error('❌ Critical shader files are missing!');
+      throw new Error('Required shader files not found');
+    }
+
     this.vertProgram = this._createProgram(vertexShaderSrc, fragmentGlassMainSrc);
     this.hBlurProgram = this._createProgram(vertexShaderSrc, fragmentBgHBlur);
     this.vBlurProgram = this._createProgram(vertexShaderSrc, fragmentBgVBlur);
@@ -76,13 +92,25 @@ export class LiquidGlassNodeRenderer {
   _createProgram(vertSrc, fragSrc) {
     const gl = this.gl;
     function compile(type, src) {
+      if (window.DEBUG_LIQUID_GLASS) {
+        try {
+          console.log(`Compiling ${type === gl.VERTEX_SHADER ? 'vertex' : 'fragment'} shader...`);
+          console.log('Shader source length:', src ? src.length : 'MISSING');
+        } catch (_) {}
+      }
       const shader = gl.createShader(type);
       gl.shaderSource(shader, src);
       gl.compileShader(shader);
       if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
         const error = gl.getShaderInfoLog(shader);
         console.error(`Shader compilation error (${type === gl.VERTEX_SHADER ? 'vertex' : 'fragment'}):`, error);
+        if (window.DEBUG_LIQUID_GLASS) {
+          try { console.error('Shader source:', src); } catch (_) {}
+        }
         throw new Error(error);
+      }
+      if (window.DEBUG_LIQUID_GLASS) {
+        try { console.log(`✅ ${type === gl.VERTEX_SHADER ? 'Vertex' : 'Fragment'} shader compiled successfully`); } catch (_) {}
       }
       return shader;
     }
@@ -96,6 +124,9 @@ export class LiquidGlassNodeRenderer {
       const error = gl.getProgramInfoLog(prog);
       console.error('Program linking error:', error);
       throw new Error(error);
+    }
+    if (window.DEBUG_LIQUID_GLASS) {
+      try { console.log('✅ Shader program linked successfully'); } catch (_) {}
     }
     return prog;
   }
@@ -230,6 +261,10 @@ export class LiquidGlassNodeRenderer {
     // 4. GLASS MAIN PASS
     gl.bindFramebuffer(gl.FRAMEBUFFER, null); // Render to main framebuffer
     gl.useProgram(this.vertProgram);
+    // Ensure blending for transparency and disable depth test for overlays
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.disable(gl.DEPTH_TEST);
     
     // Check for WebGL errors
     const error = gl.getError();
