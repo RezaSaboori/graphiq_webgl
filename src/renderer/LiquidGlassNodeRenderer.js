@@ -163,12 +163,37 @@ export class LiquidGlassNodeRenderer {
   drawQuad() {
     const gl = this.gl;
     gl.bindBuffer(gl.ARRAY_BUFFER, this.quadVBO);
-    const aPos = gl.getAttribLocation(gl.getParameter(gl.CURRENT_PROGRAM), "a_position");
+    const program = gl.getParameter(gl.CURRENT_PROGRAM);
+    const aPos = gl.getAttribLocation(program, "a_position");
+    if (window.DEBUG_LIQUID_GLASS) {
+      try {
+        console.log('🔍 DrawQuad Debug:');
+        console.log('- Current program:', program);
+        console.log('- a_position location:', aPos);
+        console.log('- VBO bound:', this.quadVBO);
+      } catch (_) {}
+    }
     if (aPos >= 0) {
       gl.enableVertexAttribArray(aPos);
       gl.vertexAttribPointer(aPos, 4, gl.FLOAT, false, 0, 0);
+    } else {
+      console.error('❌ a_position attribute not found!');
+      return;
+    }
+    // Ensure blending for transparency
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    if (window.DEBUG_LIQUID_GLASS) {
+      try { console.log('- About to draw...'); } catch (_) {}
     }
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    if (window.DEBUG_LIQUID_GLASS) {
+      try { console.log('- Draw call completed'); } catch (_) {}
+    }
+    const drawError = gl.getError();
+    if (drawError !== gl.NO_ERROR) {
+      console.error('❌ WebGL error during draw:', drawError);
+    }
     if (aPos >= 0) {
       gl.disableVertexAttribArray(aPos);
     }
@@ -265,6 +290,13 @@ export class LiquidGlassNodeRenderer {
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     gl.disable(gl.DEPTH_TEST);
+    if (window.DEBUG_LIQUID_GLASS) {
+      try {
+        console.log('🔍 WebGL Debug - Glass Pass:');
+        console.log('- Program valid:', gl.getProgramParameter(this.vertProgram, gl.LINK_STATUS));
+        console.log('- Current program bound:', gl.getParameter(gl.CURRENT_PROGRAM) === this.vertProgram);
+      } catch (_) {}
+    }
     
     // Check for WebGL errors
     const error = gl.getError();
@@ -291,6 +323,13 @@ export class LiquidGlassNodeRenderer {
     
     // Set glass uniforms
     this.setGlassUniforms(screenPos, screenSize, camera, z);
+    if (window.DEBUG_LIQUID_GLASS) {
+      try {
+        console.log('- About to draw quad for node at:', screenPos);
+        console.log('- Scissor enabled:', gl.isEnabled(gl.SCISSOR_TEST));
+        console.log('- Scissor box:', gl.getParameter(gl.SCISSOR_BOX));
+      } catch (_) {}
+    }
     
     this.drawQuad();
     
