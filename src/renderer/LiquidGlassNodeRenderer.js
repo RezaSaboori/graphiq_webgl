@@ -175,14 +175,22 @@ export class LiquidGlassNodeRenderer {
       });
     }
 
-    // Early-out if completely out of viewport
-    if (
-      screenPos.x + screenSize.x * 0.5 < 0 ||
-      screenPos.x - screenSize.x * 0.5 > this.width ||
-      screenPos.y + screenSize.y * 0.5 < 0 ||
-      screenPos.y - screenSize.y * 0.5 > this.height
-    ) {
-      return;
+    // Early-out if completely out of viewport (skip when DEBUG_LIQUID_GLASS is enabled)
+    if (!window.DEBUG_LIQUID_GLASS) {
+      if (
+        screenPos.x + screenSize.x * 0.5 < 0 ||
+        screenPos.x - screenSize.x * 0.5 > this.width ||
+        screenPos.y + screenSize.y * 0.5 < 0 ||
+        screenPos.y - screenSize.y * 0.5 > this.height
+      ) {
+        return;
+      }
+    } else {
+      console.log('LiquidGlassNodeRenderer culling bypass (debug):', {
+        world: { x, y, width, height, z },
+        screen: { pos: screenPos, size: screenSize },
+        viewport: { width: this.width, height: this.height }
+      });
     }
 
     // 1. SNAPSHOT BG (EXCLUDE NODE)

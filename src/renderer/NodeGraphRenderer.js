@@ -157,6 +157,17 @@ export class NodeGraphRenderer {
             if (visibleNodes.length === 0 && allNodes.length > 0) {
                 visibleNodes = allNodes;
             }
+
+            // Debug: log node counts when debug mode enabled
+            if (window.DEBUG_LIQUID_GLASS) {
+                try {
+                    console.log('NodeGraphRenderer debug:', {
+                        allNodes: allNodes.length,
+                        visibleNodes: visibleNodes.length,
+                        zoom: this.camera && this.camera.zoom,
+                    });
+                } catch (_) {}
+            }
             
             // **FIXED**: Apply LOD filtering based on camera zoom
             const lod = computeLOD(this.camera);
