@@ -68,22 +68,6 @@ export class LiquidGlassNodeRenderer {
   }
 
   compileShaders() {
-    // Debug shader source presence
-    if (window.DEBUG_LIQUID_GLASS) {
-      try {
-        console.log('🔍 Checking shader imports...');
-        console.log('vertexShaderSrc length:', vertexShaderSrc ? vertexShaderSrc.length : 'MISSING');
-        console.log('fragmentGlassMainSrc length:', fragmentGlassMainSrc ? fragmentGlassMainSrc.length : 'MISSING');
-        console.log('fragmentBgHBlur length:', fragmentBgHBlur ? fragmentBgHBlur.length : 'MISSING');
-        console.log('fragmentBgVBlur length:', fragmentBgVBlur ? fragmentBgVBlur.length : 'MISSING');
-      } catch (_) {}
-    }
-
-    if (!vertexShaderSrc || !fragmentGlassMainSrc) {
-      console.error('❌ Critical shader files are missing!');
-      throw new Error('Required shader files not found');
-    }
-
     this.vertProgram = this._createProgram(vertexShaderSrc, fragmentGlassMainSrc);
     this.hBlurProgram = this._createProgram(vertexShaderSrc, fragmentBgHBlur);
     this.vBlurProgram = this._createProgram(vertexShaderSrc, fragmentBgVBlur);
@@ -92,25 +76,13 @@ export class LiquidGlassNodeRenderer {
   _createProgram(vertSrc, fragSrc) {
     const gl = this.gl;
     function compile(type, src) {
-      if (window.DEBUG_LIQUID_GLASS) {
-        try {
-          console.log(`Compiling ${type === gl.VERTEX_SHADER ? 'vertex' : 'fragment'} shader...`);
-          console.log('Shader source length:', src ? src.length : 'MISSING');
-        } catch (_) {}
-      }
       const shader = gl.createShader(type);
       gl.shaderSource(shader, src);
       gl.compileShader(shader);
       if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
         const error = gl.getShaderInfoLog(shader);
         console.error(`Shader compilation error (${type === gl.VERTEX_SHADER ? 'vertex' : 'fragment'}):`, error);
-        if (window.DEBUG_LIQUID_GLASS) {
-          try { console.error('Shader source:', src); } catch (_) {}
-        }
         throw new Error(error);
-      }
-      if (window.DEBUG_LIQUID_GLASS) {
-        try { console.log(`✅ ${type === gl.VERTEX_SHADER ? 'Vertex' : 'Fragment'} shader compiled successfully`); } catch (_) {}
       }
       return shader;
     }
@@ -124,9 +96,6 @@ export class LiquidGlassNodeRenderer {
       const error = gl.getProgramInfoLog(prog);
       console.error('Program linking error:', error);
       throw new Error(error);
-    }
-    if (window.DEBUG_LIQUID_GLASS) {
-      try { console.log('✅ Shader program linked successfully'); } catch (_) {}
     }
     return prog;
   }
@@ -163,37 +132,12 @@ export class LiquidGlassNodeRenderer {
   drawQuad() {
     const gl = this.gl;
     gl.bindBuffer(gl.ARRAY_BUFFER, this.quadVBO);
-    const program = gl.getParameter(gl.CURRENT_PROGRAM);
-    const aPos = gl.getAttribLocation(program, "a_position");
-    if (window.DEBUG_LIQUID_GLASS) {
-      try {
-        console.log('🔍 DrawQuad Debug:');
-        console.log('- Current program:', program);
-        console.log('- a_position location:', aPos);
-        console.log('- VBO bound:', this.quadVBO);
-      } catch (_) {}
-    }
+    const aPos = gl.getAttribLocation(gl.getParameter(gl.CURRENT_PROGRAM), "a_position");
     if (aPos >= 0) {
       gl.enableVertexAttribArray(aPos);
       gl.vertexAttribPointer(aPos, 4, gl.FLOAT, false, 0, 0);
-    } else {
-      console.error('❌ a_position attribute not found!');
-      return;
-    }
-    // Ensure blending for transparency
-    gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-    if (window.DEBUG_LIQUID_GLASS) {
-      try { console.log('- About to draw...'); } catch (_) {}
     }
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-    if (window.DEBUG_LIQUID_GLASS) {
-      try { console.log('- Draw call completed'); } catch (_) {}
-    }
-    const drawError = gl.getError();
-    if (drawError !== gl.NO_ERROR) {
-      console.error('❌ WebGL error during draw:', drawError);
-    }
     if (aPos >= 0) {
       gl.disableVertexAttribArray(aPos);
     }
@@ -231,22 +175,14 @@ export class LiquidGlassNodeRenderer {
       });
     }
 
-    // Early-out if completely out of viewport (skip when DEBUG_LIQUID_GLASS is enabled)
-    if (!window.DEBUG_LIQUID_GLASS) {
-      if (
-        screenPos.x + screenSize.x * 0.5 < 0 ||
-        screenPos.x - screenSize.x * 0.5 > this.width ||
-        screenPos.y + screenSize.y * 0.5 < 0 ||
-        screenPos.y - screenSize.y * 0.5 > this.height
-      ) {
-        return;
-      }
-    } else {
-      console.log('LiquidGlassNodeRenderer culling bypass (debug):', {
-        world: { x, y, width, height, z },
-        screen: { pos: screenPos, size: screenSize },
-        viewport: { width: this.width, height: this.height }
-      });
+    // Early-out if completely out of viewport
+    if (
+      screenPos.x + screenSize.x * 0.5 < 0 ||
+      screenPos.x - screenSize.x * 0.5 > this.width ||
+      screenPos.y + screenSize.y * 0.5 < 0 ||
+      screenPos.y - screenSize.y * 0.5 > this.height
+    ) {
+      return;
     }
 
     // 1. SNAPSHOT BG (EXCLUDE NODE)
@@ -286,17 +222,6 @@ export class LiquidGlassNodeRenderer {
     // 4. GLASS MAIN PASS
     gl.bindFramebuffer(gl.FRAMEBUFFER, null); // Render to main framebuffer
     gl.useProgram(this.vertProgram);
-    // Ensure blending for transparency and disable depth test for overlays
-    gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-    gl.disable(gl.DEPTH_TEST);
-    if (window.DEBUG_LIQUID_GLASS) {
-      try {
-        console.log('🔍 WebGL Debug - Glass Pass:');
-        console.log('- Program valid:', gl.getProgramParameter(this.vertProgram, gl.LINK_STATUS));
-        console.log('- Current program bound:', gl.getParameter(gl.CURRENT_PROGRAM) === this.vertProgram);
-      } catch (_) {}
-    }
     
     // Check for WebGL errors
     const error = gl.getError();
@@ -323,13 +248,6 @@ export class LiquidGlassNodeRenderer {
     
     // Set glass uniforms
     this.setGlassUniforms(screenPos, screenSize, camera, z);
-    if (window.DEBUG_LIQUID_GLASS) {
-      try {
-        console.log('- About to draw quad for node at:', screenPos);
-        console.log('- Scissor enabled:', gl.isEnabled(gl.SCISSOR_TEST));
-        console.log('- Scissor box:', gl.getParameter(gl.SCISSOR_BOX));
-      } catch (_) {}
-    }
     
     this.drawQuad();
     

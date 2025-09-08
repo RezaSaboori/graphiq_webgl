@@ -56,7 +56,6 @@ export default function NodeGraphContainer({ graphData, nodeWidth = 300 }) {
     rendererRef.current = renderer;
     renderer.camera = camera; // Save reference for renderer
     renderer.spatialIndex = spatial; // Save reference for frustum culling
-    renderer.graph = graph; // Ensure renderer has graph reference for rendering
     renderer.setViewportSize(canvasWidth, canvasHeight); // Set initial WebGL viewport
     
     const drawLoop = new DrawLoop(renderer, null); // Will be updated after sceneModel is created

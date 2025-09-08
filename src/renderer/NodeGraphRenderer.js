@@ -1,5 +1,8 @@
+import nodeVertSrc from './shaders/node.vert?raw';
+import nodeFragSrc from './shaders/node.frag?raw';
 import bgVertSrc from './shaders/background.vert?raw';
 import bgFragSrc from './shaders/background.frag?raw';
+import { InstancedNodeRenderer } from './InstancedNodeRenderer';
 import { InstancedEdgeRenderer } from './InstancedEdgeRenderer';
 import { LiquidGlassNodeRenderer } from './LiquidGlassNodeRenderer';
 
@@ -51,6 +54,7 @@ export class NodeGraphRenderer {
         this.camera = null; // Will be set by the main component
         this.spatialIndex = null; // Will be set by the main component
 
+        this.instancedRenderer = new InstancedNodeRenderer(gl);
         this.edgeRenderer = new InstancedEdgeRenderer(gl);
         this.liquidGlassRenderer = new LiquidGlassNodeRenderer(gl, canvas.width, canvas.height);
         this.init();
@@ -76,7 +80,26 @@ export class NodeGraphRenderer {
         1,   1
         ]), gl.STATIC_DRAW);
 
-        // (Removed old rectangle node program and buffers)
+        // --- Node rendering program ---
+        this.nodeProg = createProgram(gl, nodeVertSrc, nodeFragSrc);
+        this.a_position = gl.getAttribLocation(this.nodeProg, 'a_position');
+        this.a_screen = gl.getAttribLocation(this.nodeProg, 'a_screen');
+        this.a_size = gl.getAttribLocation(this.nodeProg, 'a_size');
+        this.u_color = gl.getUniformLocation(this.nodeProg, 'u_color');
+        this.u_viewProjection = gl.getUniformLocation(this.nodeProg, 'u_viewProjectionMatrix');
+
+        this.rectVBO = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.rectVBO);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+        -0.5,-0.5,
+        0.5,-0.5,
+        -0.5, 0.5,
+        0.5, 0.5
+        ]), gl.STATIC_DRAW);
+
+        this.rectIBO = gl.createBuffer();
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.rectIBO);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array([0,1,2,3]), gl.STATIC_DRAW);
     }
 
     setViewportSize(width, height) {
@@ -104,7 +127,32 @@ export class NodeGraphRenderer {
         gl.disableVertexAttribArray(aPos);
     }
 
-    // (Removed old rectangle node draw function)
+    drawNode(worldX, worldY, width, height, color, viewProjectionMatrix) {
+        const gl = this.gl;
+        gl.useProgram(this.nodeProg);
+        
+        // Set viewProjection matrix
+        if (this.u_viewProjection) {
+            gl.uniformMatrix4fv(this.u_viewProjection, false, viewProjectionMatrix);
+        }
+        
+        // Setup vertex attributes
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.rectVBO);
+        gl.enableVertexAttribArray(this.a_position);
+        gl.vertexAttribPointer(this.a_position, 2, gl.FLOAT, false, 0, 0);
+        
+        // Set instance data (position, size, color)
+        gl.vertexAttrib2f(this.a_screen, worldX, worldY);
+        gl.vertexAttrib2f(this.a_size, width, height);
+        gl.uniform4fv(this.u_color, color);
+        
+        // Draw
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.rectIBO);
+        gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+        
+        // Cleanup
+        gl.disableVertexAttribArray(this.a_position);
+    }
 
     /**
      * Update z-order for a node (useful when dragging)
@@ -146,7 +194,7 @@ export class NodeGraphRenderer {
         ]);
 
         // Edges first (if graph available)
-        if (this.graph && this.edgeRenderer) {
+        if (this.graph && this.edgeRenderer && this.instancedRenderer) {
             // **NEW**: Use visible nodes only for frustum culling
             const allNodes = [...this.graph.nodes.values()];
             let visibleNodes = this.spatialIndex && this.camera ?
@@ -156,17 +204,6 @@ export class NodeGraphRenderer {
             // **FIXED**: Fallback - if no nodes are visible, show all nodes (debugging)
             if (visibleNodes.length === 0 && allNodes.length > 0) {
                 visibleNodes = allNodes;
-            }
-
-            // Debug: log node counts when debug mode enabled
-            if (window.DEBUG_LIQUID_GLASS) {
-                try {
-                    console.log('NodeGraphRenderer debug:', {
-                        allNodes: allNodes.length,
-                        visibleNodes: visibleNodes.length,
-                        zoom: this.camera && this.camera.zoom,
-                    });
-                } catch (_) {}
             }
             
             // **FIXED**: Apply LOD filtering based on camera zoom
@@ -218,6 +255,11 @@ export class NodeGraphRenderer {
                     
                     // Render edges
                     this.edgeRenderer.render(viewProjectionMatrix);
+                    
+                    // Render other nodes (excluding current node)
+                    const otherNodes = sortedNodes.filter(n => n.id !== node.id);
+                    this.instancedRenderer.updateNodes(otherNodes);
+                    this.instancedRenderer.render(viewProjectionMatrix);
                 };
                 
                 // Render liquid glass effect for this node
