@@ -6,19 +6,19 @@ import fragmentBgHBlur from './shaders/fragment-bg-hblur.glsl?raw';
 // Glass effect uniforms - shared across all nodes
 export const GLASS_UNIFORMS = {
   refThickness: 35,           // ⬆️ Increased from 20
-  refFactor: 2.5,            // ⬆️ Increased from 1.4  
+  refFactor: 1.5,            // ⬆️ Increased from 1.4  
   refDispersion: 15,         // ⬆️ Increased from 7
   refFresnelRange: 30,
   refFresnelHardness: 20,
   refFresnelFactor: 40,      // ⬆️ Increased from 20
   glareRange: 50,            // ⬆️ Increased from 30
   glareHardness: 20,
-  glareFactor: 150,          // ⬆️ Increased from 90
+  glareFactor: 50,          // ⬆️ Increased from 90
   glareConvergence: 50,
   glareOppositeFactor: 80,
   glareAngle: -45,
-  blurRadius: 1,
-  tint: [1.0, 1.0, 1.0, 1.0],  // RGBA normalized - increased alpha for visibility
+  blurRadius: 0.1,
+  tint: [1.0, 1.0, 1.0, 0.5],  // RGBA normalized - increased alpha for visibility
   shadowExpand: 25,
   shadowFactor: 15,
   shadowPosition: [0, -10],
@@ -26,7 +26,7 @@ export const GLASS_UNIFORMS = {
   shapeHeight: 200,
   shapeRadius: 80,
   shapeRoundness: 5,
-  mergeRate: 0.05,
+  mergeRate: 0.0,
   showShape1: 1,
   step: 9,
 };
