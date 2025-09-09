@@ -776,6 +776,5 @@ void main() {
 
   }
 
-  // DEBUG: Force a solid red output to verify shader runs. Comment this out to restore.
-  fragColor = vec4(1.0, 0.0, 0.0, 1.0);
+  fragColor = outColor;
 }

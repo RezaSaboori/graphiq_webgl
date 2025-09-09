@@ -5,20 +5,20 @@ import fragmentBgHBlur from './shaders/fragment-bg-hblur.glsl?raw';
 
 // Glass effect uniforms - shared across all nodes
 export const GLASS_UNIFORMS = {
-  refThickness: 20,
-  refFactor: 1.4,
-  refDispersion: 7,
+  refThickness: 35,           // ⬆️ Increased from 20
+  refFactor: 2.5,            // ⬆️ Increased from 1.4  
+  refDispersion: 15,         // ⬆️ Increased from 7
   refFresnelRange: 30,
   refFresnelHardness: 20,
-  refFresnelFactor: 20,
-  glareRange: 30,
+  refFresnelFactor: 40,      // ⬆️ Increased from 20
+  glareRange: 50,            // ⬆️ Increased from 30
   glareHardness: 20,
-  glareFactor: 90,
+  glareFactor: 150,          // ⬆️ Increased from 90
   glareConvergence: 50,
   glareOppositeFactor: 80,
   glareAngle: -45,
   blurRadius: 1,
-  tint: [1.0, 1.0, 1.0, 0.8], // RGBA normalized - increased alpha for visibility
+  tint: [1.0, 1.0, 1.0, 1.0],  // RGBA normalized - increased alpha for visibility
   shadowExpand: 25,
   shadowFactor: 15,
   shadowPosition: [0, -10],
@@ -272,7 +272,10 @@ export class LiquidGlassNodeRenderer {
     const scissorHeight = Math.max(0, Math.min(this.height - scissorY, Math.ceil(screenSize.y)));
     
     if (window.DEBUG_LIQUID_GLASS) {
+      console.log('Scissor test enabled BEFORE set:', gl.getParameter(gl.SCISSOR_TEST));
+      console.log('Viewport:', gl.getParameter(gl.VIEWPORT));
       console.log('Scissor bounds:', { scissorX, scissorY, scissorWidth, scissorHeight });
+      console.log('Canvas size:', { width: this.width, height: this.height });
     }
     // Re-enable scissor test for correct clipping within node bounds
     gl.enable(gl.SCISSOR_TEST);
