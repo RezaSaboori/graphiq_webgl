@@ -1,0 +1,217 @@
+{
+    "graph": {
+        "style": {
+            "background-color": "#1B1B1B"
+        },
+        "nodes": [
+            {
+                "id": "n0",
+                "position": {
+                    "x": 100,
+                    "y": 100
+                },
+                "color": "#eaf4f4",
+                "caption": "Root Node",
+                "labels": [
+                    {
+                        "root": "#22223b"
+                    },
+                    {
+                        "important": "#ff6b6b"
+                    }
+                ],
+                "properties": {
+                    "name": "Patient A",
+                    "age": "32"
+                }
+            },
+            {
+                "id": "n1",
+                "position": {
+                    "x": 350,
+                    "y": 150
+                },
+                "color": "#c9ada7",
+                "caption": "",
+                "labels": [
+                    {
+                        "history": "#22223b"
+                    }
+                ],
+                "properties": {
+                    "name": "Family History",
+                    "note": "Blood-related diseases"
+                }
+            },
+            {
+                "id": "n2",
+                "position": {
+                    "x": 600,
+                    "y": 300
+                },
+                "color": "#ffe066",
+                "caption": "Needs attention",
+                "labels": [
+                    {
+                        "risk": "#9d0208"
+                    },
+                    {
+                        "unspecified": "#9e2a2b"
+                    }
+                ],
+                "properties": {
+                    "risk factor": "smoking",
+                    "description": "Increased cancer risk"
+                }
+            },
+            {
+                "id": "n3",
+                "position": {
+                    "x": 850,
+                    "y": 450
+                },
+                "color": "#02c39a",
+                "caption": "",
+                "labels": [
+                    {
+                        "result": "#028090"
+                    }
+                ],
+                "properties": {
+                    "status": "recovered",
+                    "last check": "2025-08-19"
+                }
+            },
+            {
+                "id": "n4",
+                "position": {
+                    "x": 1100,
+                    "y": 600
+                },
+                "color": "#f4a259",
+                "caption": "Exclude",
+                "labels": [
+                    {
+                        "exclusion": "#8675a9"
+                    }
+                ],
+                "properties": {
+                    "exclude": "occupational exposure"
+                }
+            },
+            {
+                "id": "n5",
+                "position": {
+                    "x": 1350,
+                    "y": 350
+                },
+                "color": "#e5989b",
+                "caption": "",
+                "labels": [
+                    {
+                        "alert": "#b5179e"
+                    },
+                    {
+                        "monitor": "#5f0a87"
+                    }
+                ],
+                "properties": {
+                    "alert": "Monitor cholesterol",
+                    "monitoring period": "12m"
+                }
+            },
+            {
+                "id": "n6",
+                "position": {
+                    "x": 1600,
+                    "y": 200
+                },
+                "color": "#b4f8c8",
+                "caption": "Family",
+                "labels": [
+                    {
+                        "family": "#006d77"
+                    }
+                ],
+                "properties": {
+                    "relative": "Mother",
+                    "condition": "Hypertension"
+                }
+            }
+        ],
+        "relationships": [
+            {
+                "id": "r0",
+                "type": {
+                    "_RELATED": "#168aad"
+                },
+                "weight": 2,
+                "fromId": "n0",
+                "toId": "n1"
+            },
+            {
+                "id": "r1",
+                "type": {
+                    "_RISK": "#ffb703"
+                },
+                "weight": 1,
+                "fromId": "n1",
+                "toId": "n2"
+            },
+            {
+                "id": "r2",
+                "type": {
+                    "_EXCLUDES": "#6a4c93"
+                },
+                "weight": 1,
+                "fromId": "n2",
+                "toId": "n4"
+            },
+            {
+                "id": "r3",
+                "type": {
+                    "_RESULT": "#8ac926"
+                },
+                "weight": 1,
+                "fromId": "n0",
+                "toId": "n3"
+            },
+            {
+                "id": "r4",
+                "type": {
+                    "_MONITOR": "#ef476f"
+                },
+                "weight": 3,
+                "fromId": "n2",
+                "toId": "n5"
+            },
+            {
+                "id": "r5",
+                "type": {
+                    "_LINKED": "#118ab2"
+                },
+                "weight": 1,
+                "fromId": "n1",
+                "toId": "n6"
+            },
+            {
+                "id": "r6",
+                "type": {
+                    "_FAMILY": "#06d6a0"
+                },
+                "weight": 1,
+                "fromId": "n6",
+                "toId": "n1"
+            },
+            {
+                "id": "r7",
+                "type": {
+                    "_RELATED": "#168aad"
+                },
+                "weight": 1,
+                "fromId": "n3",
+                "toId": "n5"
+            }
+        ]
+    }
+}
