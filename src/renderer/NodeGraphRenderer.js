@@ -306,7 +306,8 @@ export class NodeGraphRenderer {
                     node.height || 100,
                     node.z || 0,
                     sceneRenderCallback,
-                    this.camera
+                    this.camera,
+                    this.showRectangleNodes
                 );
             }
         }
