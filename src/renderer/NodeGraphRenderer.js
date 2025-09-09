@@ -260,19 +260,26 @@ export class NodeGraphRenderer {
 
             const sortedNodes = lodFilteredNodes.sort((a, b) => (a.z || 0) - (b.z || 0));
 
+            // 🔧 FIXED RENDERING MODE LOGIC
             if (this.renderingMode === 'rectangle') {
+                // Always render rectangle nodes when in rectangle mode
+                this.instancedRenderer.updateNodes(sortedNodes);
+                this.instancedRenderer.render(viewProjectionMatrix);
+                
+                // Optionally render additional rectangles if toggle is on
                 if (this.showRectangleNodes) {
-                    this.instancedRenderer.updateNodes(sortedNodes);
-                    this.instancedRenderer.render(viewProjectionMatrix);
+                    // Additional rectangle rendering if needed
                 }
                 return;
             }
 
             if (this.renderingMode === 'glass') {
+                // Optional rectangle rendering
                 if (this.showRectangleNodes) {
                     this.instancedRenderer.updateNodes(sortedNodes);
                     this.instancedRenderer.render(viewProjectionMatrix);
                 }
+                // Always render glass nodes
                 gl.enable(gl.BLEND);
                 gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
                 this.glassRenderer.updateNodes(sortedNodes);
@@ -281,26 +288,33 @@ export class NodeGraphRenderer {
                 return;
             }
 
-            // liquid_glass
-            for (const node of sortedNodes) {
-                const sceneRenderCallback = () => {
-                    this.drawBackground(bgColor, dotColor, dotSpacing, dotRadius);
-                    this.edgeRenderer.render(viewProjectionMatrix);
-                    if (this.showRectangleNodes) {
-                        const otherNodes = sortedNodes.filter(n => n.id !== node.id);
-                        this.instancedRenderer.updateNodes(otherNodes);
-                        this.instancedRenderer.render(viewProjectionMatrix);
-                    }
-                };
-                this.liquidGlassRenderer.drawNode(
-                    node.position.x,
-                    node.position.y,
-                    node.width || 300,
-                    node.height || 100,
-                    node.z || 0,
-                    sceneRenderCallback,
-                    this.camera
-                );
+            // 🔧 FIXED LIQUID_GLASS mode - Always render liquid glass nodes
+            if (this.renderingMode === 'liquid_glass') {
+                // Always render liquid glass nodes
+                for (const node of sortedNodes) {
+                    const sceneRenderCallback = () => {
+                        this.drawBackground(bgColor, dotColor, dotSpacing, dotRadius);
+                        this.edgeRenderer.render(viewProjectionMatrix);
+                        
+                        // Only render other rectangle nodes if toggle is on
+                        if (this.showRectangleNodes) {
+                            const otherNodes = sortedNodes.filter(n => n.id !== node.id);
+                            this.instancedRenderer.updateNodes(otherNodes);
+                            this.instancedRenderer.render(viewProjectionMatrix);
+                        }
+                    };
+
+                    this.liquidGlassRenderer.drawNode(
+                        node.position.x,
+                        node.position.y,
+                        node.width || 300,
+                        node.height || 100,
+                        node.z || 0,
+                        sceneRenderCallback,
+                        this.camera
+                    );
+                }
+                return;
             }
         }
     }
