@@ -13,6 +13,7 @@ export const GLASS_UNIFORMS = {
   refFresnelFactor: 40,     
   glareRange: 50,            
   glareHardness: 20,
+  glareConvergence: 0.5,
   glareFactor: 50,        
   glareOppositeFactor: 80,
   glareAngle: -45,
