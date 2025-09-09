@@ -274,9 +274,9 @@ export class LiquidGlassNodeRenderer {
     if (window.DEBUG_LIQUID_GLASS) {
       console.log('Scissor bounds:', { scissorX, scissorY, scissorWidth, scissorHeight });
     }
-    // DEBUG: Temporarily disable scissor test to rule out clipping issues
-    // gl.enable(gl.SCISSOR_TEST);
-    // gl.scissor(scissorX, scissorY, scissorWidth, scissorHeight);
+    // Re-enable scissor test for correct clipping within node bounds
+    gl.enable(gl.SCISSOR_TEST);
+    gl.scissor(scissorX, scissorY, scissorWidth, scissorHeight);
     
     // Set glass uniforms
     this.setGlassUniforms(screenPos, screenSize, camera, z);
@@ -290,7 +290,7 @@ export class LiquidGlassNodeRenderer {
     }
     
     // ✅ RESTORE GL STATE COMPLETELY
-    // gl.disable(gl.SCISSOR_TEST);
+    gl.disable(gl.SCISSOR_TEST);
     gl.useProgram(null);
     
     // Reset texture units

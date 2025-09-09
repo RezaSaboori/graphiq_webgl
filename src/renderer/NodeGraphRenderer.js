@@ -309,11 +309,18 @@ export class NodeGraphRenderer {
                     const sceneRenderCallback = () => {
                         this.drawBackground(bgColor, dotColor, dotSpacing, dotRadius);
                         this.edgeRenderer.render(viewProjectionMatrix);
-                        
-                        // Only render other rectangle nodes if toggle is on
+
+                        // Render rectangle nodes if toggle is on (all but current)
                         if (this.showRectangleNodes) {
-                            const otherNodes = sortedNodes.filter(n => n.id !== node.id);
-                            this.instancedRenderer.updateNodes(otherNodes);
+                            const otherRectNodes = sortedNodes.filter(n => n.id !== node.id);
+                            this.instancedRenderer.updateNodes(otherRectNodes);
+                            this.instancedRenderer.render(viewProjectionMatrix);
+                        }
+
+                        // Render other liquid glass nodes that are BEHIND current as solid shapes for background
+                        const nodesInBackground = sortedNodes.filter(n => n.id !== node.id && (n.z || 0) < (node.z || 0));
+                        if (nodesInBackground.length > 0) {
+                            this.instancedRenderer.updateNodes(nodesInBackground);
                             this.instancedRenderer.render(viewProjectionMatrix);
                         }
                     };
