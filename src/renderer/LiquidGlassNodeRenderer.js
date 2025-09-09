@@ -290,6 +290,10 @@ export class LiquidGlassNodeRenderer {
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, this.vBlurFbo.tex);
 
+    // **KEY FIX**: Check if background is empty and adjust glass parameters
+    const isEmpty = this.isBackgroundEmpty();
+    const adjustedStep = isEmpty ? 10 : GLASS_UNIFORMS.step; // Use step 10 for standalone mode
+
     // Set all glass uniforms
     const uniforms = {
       u_blurredBg: gl.getUniformLocation(this.vertProgram, 'u_blurredBg'),
@@ -318,6 +322,7 @@ export class LiquidGlassNodeRenderer {
       u_glareAngle: gl.getUniformLocation(this.vertProgram, 'u_glareAngle'),
       u_showShape1: gl.getUniformLocation(this.vertProgram, 'u_showShape1'),
       STEP: gl.getUniformLocation(this.vertProgram, 'STEP'),
+      u_standalone: gl.getUniformLocation(this.vertProgram, 'u_standalone'),
       // Per-node arrays (use [0] for base address)
       u_nodeCount: gl.getUniformLocation(this.vertProgram, 'u_nodeCount'),
       u_nodePositions0: gl.getUniformLocation(this.vertProgram, 'u_nodePositions[0]'),
@@ -348,7 +353,6 @@ export class LiquidGlassNodeRenderer {
     gl.uniform1f(uniforms.u_shapeHeight, screenSize.y);
     gl.uniform1f(uniforms.u_shapeRadius, GLASS_UNIFORMS.shapeRadius);
     gl.uniform1f(uniforms.u_shapeRoundness, GLASS_UNIFORMS.shapeRoundness);
-    gl.uniform4fv(uniforms.u_tint, GLASS_UNIFORMS.tint);
 
     // Set refraction parameters
     gl.uniform1f(uniforms.u_refThickness, GLASS_UNIFORMS.refThickness);
@@ -368,7 +372,16 @@ export class LiquidGlassNodeRenderer {
 
     // Set other parameters
     gl.uniform1i(uniforms.u_showShape1, GLASS_UNIFORMS.showShape1);
-    gl.uniform1i(uniforms.STEP, GLASS_UNIFORMS.step);
+    
+    // **NEW**: Set standalone mode and adjusted step
+    gl.uniform1i(uniforms.STEP, adjustedStep);
+    gl.uniform1i(uniforms.u_standalone, isEmpty ? 1 : 0);
+
+    // **NEW**: Enhanced tint for standalone mode
+    const enhancedTint = isEmpty ? 
+      [0.8, 0.9, 1.0, 0.6] : // More opaque and visible for standalone
+      GLASS_UNIFORMS.tint;
+    gl.uniform4fv(uniforms.u_tint, enhancedTint);
 
     // Per-node data (pass a single node for now)
     if (
@@ -413,6 +426,24 @@ export class LiquidGlassNodeRenderer {
     const p1 = camera.worldToScreen(0, 0);
     const p2 = camera.worldToScreen(worldWidth, worldHeight);
     return { x: Math.abs(p2.x - p1.x), y: Math.abs(p2.y - p1.y) };
+  }
+
+  // **NEW METHOD**: Check if background is effectively empty
+  isBackgroundEmpty() {
+    const gl = this.gl;
+    
+    // Read a sample of pixels from the background texture to check if it's mostly empty
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.bgFbo.fbo);
+    
+    const pixels = new Uint8Array(4);
+    const centerX = Math.floor(this.width / 2);
+    const centerY = Math.floor(this.height / 2);
+    
+    gl.readPixels(centerX, centerY, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+    
+    // Consider background empty if the center pixel is very dark (close to background color)
+    const brightness = (pixels[0] + pixels[1] + pixels[2]) / (3 * 255);
+    return brightness < 0.2; // Threshold for "empty" background
   }
 
   dispose() {

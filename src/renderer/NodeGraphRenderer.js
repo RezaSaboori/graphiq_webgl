@@ -283,14 +283,21 @@ export class NodeGraphRenderer {
 
             // liquid_glass
             for (const node of sortedNodes) {
+                // Simplified scene render callback
                 const sceneRenderCallback = () => {
+                    // Always render background and edges
                     this.drawBackground(bgColor, dotColor, dotSpacing, dotRadius);
                     this.edgeRenderer.render(viewProjectionMatrix);
+                    
+                    // Only render rectangle nodes if enabled
                     if (this.showRectangleNodes) {
                         const otherNodes = sortedNodes.filter(n => n.id !== node.id);
-                        this.instancedRenderer.updateNodes(otherNodes);
-                        this.instancedRenderer.render(viewProjectionMatrix);
+                        if (otherNodes.length > 0) {
+                            this.instancedRenderer.updateNodes(otherNodes);
+                            this.instancedRenderer.render(viewProjectionMatrix);
+                        }
                     }
+                    // If showRectangleNodes is false, liquid glass will automatically use standalone mode
                 };
                 this.liquidGlassRenderer.drawNode(
                     node.position.x,
