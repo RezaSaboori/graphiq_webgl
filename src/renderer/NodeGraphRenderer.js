@@ -310,26 +310,22 @@ export class NodeGraphRenderer {
                         this.drawBackground(bgColor, dotColor, dotSpacing, dotRadius);
                         this.edgeRenderer.render(viewProjectionMatrix);
 
-                        // ✅ Always render subtle background content for refraction
-                        const tempNodes = sortedNodes
-                            .filter(n => n.id !== node.id)
-                            .map(n => ({
-                                ...n,
-                                color: '#3d3d3d',
-                            }));
-                        if (tempNodes.length > 0) {
-                            this.instancedRenderer.updateNodes(tempNodes);
+                        // ✅ Render all nodes including current for refraction content
+                        const allNodesForRefraction = sortedNodes.map(n => ({
+                            ...n,
+                            color: n.id === node.id ? '#4a90e2' : '#3d3d3d',
+                        }));
+                        if (allNodesForRefraction.length > 0) {
+                            this.instancedRenderer.updateNodes(allNodesForRefraction);
                             this.instancedRenderer.render(viewProjectionMatrix);
                         }
 
-                        // Render rectangle nodes if toggle is on (all but current)
+                        // Render rectangle nodes if toggle is on
                         if (this.showRectangleNodes) {
-                            const otherRectNodes = sortedNodes.filter(n => n.id !== node.id);
-                            this.instancedRenderer.updateNodes(otherRectNodes);
+                            const rectNodes = sortedNodes.filter(n => n.id !== node.id);
+                            this.instancedRenderer.updateNodes(rectNodes);
                             this.instancedRenderer.render(viewProjectionMatrix);
                         }
-
-                        // Note: background liquid-glass nodes as solids remains disabled
                     };
 
                     this.liquidGlassRenderer.drawNode(
