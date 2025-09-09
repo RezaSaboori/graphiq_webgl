@@ -5,6 +5,7 @@ import bgFragSrc from './shaders/background.frag?raw';
 import { InstancedNodeRenderer } from './InstancedNodeRenderer';
 import { InstancedEdgeRenderer } from './InstancedEdgeRenderer';
 import { LiquidGlassNodeRenderer } from './LiquidGlassNodeRenderer';
+import { GlassNodeRenderer } from './GlassNodeRenderer';
 
 
 // Utility to compile shaders/programs
@@ -57,6 +58,11 @@ export class NodeGraphRenderer {
         this.instancedRenderer = new InstancedNodeRenderer(gl);
         this.edgeRenderer = new InstancedEdgeRenderer(gl);
         this.liquidGlassRenderer = new LiquidGlassNodeRenderer(gl, canvas.width, canvas.height);
+        this.glassRenderer = new GlassNodeRenderer(gl);
+
+        // Rendering mode and toggles
+        this.renderingMode = 'liquid_glass';
+        this.showRectangleNodes = false;
         this.init();
     }
     init() {
@@ -105,6 +111,15 @@ export class NodeGraphRenderer {
     setViewportSize(width, height) {
         this.gl.viewport(0, 0, width, height);
         this.liquidGlassRenderer.setViewportSize(width, height);
+    }
+
+    setRenderingMode(mode) {
+        const modes = ['rectangle', 'glass', 'liquid_glass'];
+        if (modes.includes(mode)) this.renderingMode = mode;
+    }
+
+    setShowRectangleNodes(show) {
+        this.showRectangleNodes = !!show;
     }
 
     drawBackground(bgColor, dotColor = [0.8, 0.8, 0.8, 1.0], dotSpacing = 20.0, dotRadius = 2.5) {
@@ -242,32 +257,46 @@ export class NodeGraphRenderer {
             
             this.edgeRenderer.updateEdges(visibleEdges, visibleNodeMap);
             this.edgeRenderer.render(viewProjectionMatrix);
-            
-            // **NEW**: Sort nodes by z-index for proper liquid glass rendering order
+
             const sortedNodes = lodFilteredNodes.sort((a, b) => (a.z || 0) - (b.z || 0));
-            
-            // Render liquid glass nodes one by one with proper z-ordering
-            for (const node of sortedNodes) {
-                // Create a scene render callback that renders everything except this node
-                const sceneRenderCallback = () => {
-                    // Render background
-                    this.drawBackground(bgColor, dotColor, dotSpacing, dotRadius);
-                    
-                    // Render edges
-                    this.edgeRenderer.render(viewProjectionMatrix);
-                    
-                    // Render other nodes (excluding current node)
-                    const otherNodes = sortedNodes.filter(n => n.id !== node.id);
-                    this.instancedRenderer.updateNodes(otherNodes);
+
+            if (this.renderingMode === 'rectangle') {
+                if (this.showRectangleNodes) {
+                    this.instancedRenderer.updateNodes(sortedNodes);
                     this.instancedRenderer.render(viewProjectionMatrix);
+                }
+                return;
+            }
+
+            if (this.renderingMode === 'glass') {
+                if (this.showRectangleNodes) {
+                    this.instancedRenderer.updateNodes(sortedNodes);
+                    this.instancedRenderer.render(viewProjectionMatrix);
+                }
+                gl.enable(gl.BLEND);
+                gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+                this.glassRenderer.updateNodes(sortedNodes);
+                this.glassRenderer.render(viewProjectionMatrix);
+                gl.disable(gl.BLEND);
+                return;
+            }
+
+            // liquid_glass
+            for (const node of sortedNodes) {
+                const sceneRenderCallback = () => {
+                    this.drawBackground(bgColor, dotColor, dotSpacing, dotRadius);
+                    this.edgeRenderer.render(viewProjectionMatrix);
+                    if (this.showRectangleNodes) {
+                        const otherNodes = sortedNodes.filter(n => n.id !== node.id);
+                        this.instancedRenderer.updateNodes(otherNodes);
+                        this.instancedRenderer.render(viewProjectionMatrix);
+                    }
                 };
-                
-                // Render liquid glass effect for this node
                 this.liquidGlassRenderer.drawNode(
-                    node.position.x, 
-                    node.position.y, 
-                    node.width || 300, 
-                    node.height || 100, 
+                    node.position.x,
+                    node.position.y,
+                    node.width || 300,
+                    node.height || 100,
                     node.z || 0,
                     sceneRenderCallback,
                     this.camera

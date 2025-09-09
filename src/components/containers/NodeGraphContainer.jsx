@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { InteractionManager } from '../../interaction/InteractionManager';
 import { SimpleSpatialIndex } from '../../interaction/SimpleSpatialIndex';
 import { NodeGraphRenderer, hexToRgbNorm } from '../../renderer/NodeGraphRenderer';
@@ -9,6 +9,7 @@ import { Camera } from '../../scene/Camera';
 import { GraphDataService } from '../../services/GraphDataService';
 import { BACKGROUND_STYLE } from '../../style/WebglTheme';
 import NodeGraphCanvas from '../NodeGraphCanvas';
+import RenderingModeToggle from '../RenderingModeToggle';
 
 /**
  * Container component that handles all the complex WebGL setup, data processing,
@@ -21,6 +22,24 @@ export default function NodeGraphContainer({ graphData, nodeWidth = 300 }) {
   const managerRef = useRef(null);
   const sceneModelRef = useRef(null);
   const drawLoopRef = useRef(null);
+  const [renderingMode, setRenderingMode] = useState('liquid_glass');
+  const [showRectangles, setShowRectangles] = useState(false);
+
+  const handleModeChange = (mode) => {
+    setRenderingMode(mode);
+    if (rendererRef.current) {
+      rendererRef.current.setRenderingMode(mode);
+      drawLoopRef.current?.markDirty();
+    }
+  };
+
+  const handleToggleRectangles = (show) => {
+    setShowRectangles(show);
+    if (rendererRef.current) {
+      rendererRef.current.setShowRectangleNodes(show);
+      drawLoopRef.current?.markDirty();
+    }
+  };
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -57,6 +76,8 @@ export default function NodeGraphContainer({ graphData, nodeWidth = 300 }) {
     renderer.camera = camera; // Save reference for renderer
     renderer.spatialIndex = spatial; // Save reference for frustum culling
     renderer.setViewportSize(canvasWidth, canvasHeight); // Set initial WebGL viewport
+    renderer.setRenderingMode(renderingMode);
+    renderer.setShowRectangleNodes(showRectangles);
     
     const drawLoop = new DrawLoop(renderer, null); // Will be updated after sceneModel is created
     drawLoopRef.current = drawLoop;
@@ -166,7 +187,16 @@ export default function NodeGraphContainer({ graphData, nodeWidth = 300 }) {
       sceneModelRef.current = null;
       drawLoopRef.current = null;
     };
-  }, [graphData, nodeWidth]);
+  }, [graphData, nodeWidth, renderingMode, showRectangles]);
 
-  return <NodeGraphCanvas ref={canvasRef} />;
+  return (
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <NodeGraphCanvas ref={canvasRef} />
+      <RenderingModeToggle
+        onModeChange={handleModeChange}
+        onToggleRectangles={handleToggleRectangles}
+        initialMode={renderingMode}
+      />
+    </div>
+  );
 }
