@@ -18,7 +18,7 @@ export const GLASS_UNIFORMS = {
   glareOppositeFactor: 80,
   glareAngle: -45,
   blurRadius: 1,
-  tint: [1.0, 1.0, 1.0, 0.2], // RGBA normalized
+  tint: [1.0, 1.0, 1.0, 0.8], // RGBA normalized - increased alpha for visibility
   shadowExpand: 25,
   shadowFactor: 15,
   shadowPosition: [0, -10],
@@ -97,6 +97,12 @@ export class LiquidGlassNodeRenderer {
       console.error('Program linking error:', error);
       throw new Error(error);
     }
+    
+    // ✅ Add error checking in _createProgram method
+    if (window.DEBUG_LIQUID_GLASS) {
+      console.log('Shader program created successfully:', prog);
+    }
+    
     return prog;
   }
 
@@ -167,11 +173,26 @@ export class LiquidGlassNodeRenderer {
     const screenPos = this.worldToScreen(x, y, camera);
     const screenSize = this.worldToScreenSize(width, height, camera);
 
+    // ✅ SAVE GL STATE
+    const savedState = {
+      framebuffer: gl.getParameter(gl.FRAMEBUFFER_BINDING),
+      viewport: gl.getParameter(gl.VIEWPORT),
+      clearColor: gl.getParameter(gl.COLOR_CLEAR_VALUE),
+      program: gl.getParameter(gl.CURRENT_PROGRAM),
+      scissorTest: gl.getParameter(gl.SCISSOR_TEST),
+      scissorBox: gl.getParameter(gl.SCISSOR_BOX)
+    };
+
     // Optional debug logging
     if (window.DEBUG_LIQUID_GLASS) {
       console.log('Drawing liquid glass node:', {
         world: { x, y, width, height, z },
         screen: { pos: screenPos, size: screenSize },
+        glassUniforms: {
+          tint: GLASS_UNIFORMS.tint,
+          showShape1: GLASS_UNIFORMS.showShape1,
+          refFactor: GLASS_UNIFORMS.refFactor
+        }
       });
     }
 
@@ -187,7 +208,8 @@ export class LiquidGlassNodeRenderer {
 
     // 1. SNAPSHOT BG (EXCLUDE NODE)
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.bgFbo.fbo);
-    gl.clearColor(0, 0, 0, 0);
+    gl.viewport(0, 0, this.width, this.height); // ✅ Set viewport for framebuffer
+    gl.clearColor(0.12, 0.12, 0.13, 1.0);     // ✅ Use solid background color
     gl.clear(gl.COLOR_BUFFER_BIT);
     
     // Render scene excluding this node
@@ -197,30 +219,33 @@ export class LiquidGlassNodeRenderer {
 
     // 2. HORIZONTAL BLUR PASS
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.hBlurFbo.fbo);
+    gl.viewport(0, 0, this.width, this.height); // ✅ Set viewport for each framebuffer
     gl.useProgram(this.hBlurProgram);
     
     // Set uniforms for horizontal blur
     const hBlurUniforms = this.getBlurUniforms(this.hBlurProgram, this.bgFbo.tex);
     this.setBlurUniforms(hBlurUniforms);
     
-    gl.clearColor(0, 0, 0, 0);
+    gl.clearColor(0, 0, 0, 1.0);               // ✅ Solid black for blur
     gl.clear(gl.COLOR_BUFFER_BIT);
     this.drawQuad();
 
     // 3. VERTICAL BLUR PASS
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.vBlurFbo.fbo);
+    gl.viewport(0, 0, this.width, this.height); // ✅ Set viewport
     gl.useProgram(this.vBlurProgram);
     
     // Set uniforms for vertical blur
     const vBlurUniforms = this.getBlurUniforms(this.vBlurProgram, this.hBlurFbo.tex);
     this.setBlurUniforms(vBlurUniforms);
     
-    gl.clearColor(0, 0, 0, 0);
+    gl.clearColor(0, 0, 0, 1.0);               // ✅ Solid black for blur
     gl.clear(gl.COLOR_BUFFER_BIT);
     this.drawQuad();
 
     // 4. GLASS MAIN PASS
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null); // Render to main framebuffer
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, this.width, this.height); // ✅ Restore main viewport
     gl.useProgram(this.vertProgram);
     
     // Check for WebGL errors
@@ -257,7 +282,24 @@ export class LiquidGlassNodeRenderer {
       console.error('WebGL error after glass pass:', errorAfter);
     }
     
+    // ✅ RESTORE GL STATE COMPLETELY
     gl.disable(gl.SCISSOR_TEST);
+    gl.useProgram(null);
+    
+    // Reset texture units
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    
+    // Restore original state
+    gl.viewport(savedState.viewport[0], savedState.viewport[1], savedState.viewport[2], savedState.viewport[3]);
+    gl.clearColor(savedState.clearColor[0], savedState.clearColor[1], savedState.clearColor[2], savedState.clearColor[3]);
+    
+    // Clear any GL errors
+    while (gl.getError() !== gl.NO_ERROR) {
+      // Clear error state
+    }
   }
 
   getBlurUniforms(program, sourceTexture) {

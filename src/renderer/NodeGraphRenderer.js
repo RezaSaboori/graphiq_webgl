@@ -296,16 +296,11 @@ export class NodeGraphRenderer {
                         this.drawBackground(bgColor, dotColor, dotSpacing, dotRadius);
                         this.edgeRenderer.render(viewProjectionMatrix);
                         
-                        // ✅ CRITICAL: Always render background rectangles for liquid glass
-                        // The liquid glass effect REQUIRES solid content behind it to work
-                        const otherNodes = sortedNodes.filter(n => n.id !== node.id);
-                        this.instancedRenderer.updateNodes(otherNodes);
-                        this.instancedRenderer.render(viewProjectionMatrix);
-                        
-                        // ✅ OPTIONAL: Additional rectangle rendering if toggle is on
+                        // Only render other rectangle nodes if toggle is on
                         if (this.showRectangleNodes) {
-                            // Could add borders, highlights, or different styling
-                            // But the core rectangles above are always needed for glass effect
+                            const otherNodes = sortedNodes.filter(n => n.id !== node.id);
+                            this.instancedRenderer.updateNodes(otherNodes);
+                            this.instancedRenderer.render(viewProjectionMatrix);
                         }
                     };
 
