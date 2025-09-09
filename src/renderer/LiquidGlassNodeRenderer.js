@@ -146,8 +146,6 @@ export class LiquidGlassNodeRenderer {
   setViewportSize(width, height) {
     this.width = width;
     this.height = height;
-    // **CRITICAL FIX**: Properly dispose of old framebuffers before recreating
-    this.dispose();
     // Recreate framebuffers with new size
     this.initFramebuffers();
   }
@@ -161,9 +159,8 @@ export class LiquidGlassNodeRenderer {
    * @param {number} z z-index for sorting
    * @param {Function} sceneRenderCallback function to render the scene excluding this node
    * @param {Object} camera camera object with viewProjection matrix
-   * @param {boolean} showRectangleNodes whether rectangle nodes are being shown
    */
-  drawNode(x, y, width, height, z, sceneRenderCallback, camera, showRectangleNodes = false) {
+  drawNode(x, y, width, height, z, sceneRenderCallback, camera) {
     const gl = this.gl;
 
     // Convert world coordinates to screen coordinates using camera
@@ -209,12 +206,6 @@ export class LiquidGlassNodeRenderer {
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
     this.drawQuad();
-    
-    // Check for WebGL errors after horizontal blur
-    const hBlurError = gl.getError();
-    if (hBlurError !== gl.NO_ERROR) {
-      console.error('WebGL error after horizontal blur:', hBlurError);
-    }
 
     // 3. VERTICAL BLUR PASS
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.vBlurFbo.fbo);
@@ -227,24 +218,10 @@ export class LiquidGlassNodeRenderer {
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
     this.drawQuad();
-    
-    // Check for WebGL errors after vertical blur
-    const vBlurError = gl.getError();
-    if (vBlurError !== gl.NO_ERROR) {
-      console.error('WebGL error after vertical blur:', vBlurError);
-    }
 
     // 4. GLASS MAIN PASS
     gl.bindFramebuffer(gl.FRAMEBUFFER, null); // Render to main framebuffer
     gl.useProgram(this.vertProgram);
-    
-    // **CRITICAL FIX**: Ensure no texture conflicts by unbinding any active textures first
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, null);
-    gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, null);
-    gl.activeTexture(gl.TEXTURE2);
-    gl.bindTexture(gl.TEXTURE_2D, null);
     
     // Check for WebGL errors
     const error = gl.getError();
@@ -270,7 +247,7 @@ export class LiquidGlassNodeRenderer {
     gl.scissor(scissorX, scissorY, scissorWidth, scissorHeight);
     
     // Set glass uniforms
-    this.setGlassUniforms(screenPos, screenSize, camera, z, showRectangleNodes);
+    this.setGlassUniforms(screenPos, screenSize, camera, z);
     
     this.drawQuad();
     
@@ -302,15 +279,9 @@ export class LiquidGlassNodeRenderer {
     gl.uniform2f(uniforms.u_resolution, this.width, this.height);
     gl.uniform1i(uniforms.u_blurRadius, GLASS_UNIFORMS.blurRadius);
     gl.uniform1fv(uniforms.u_blurWeights, this.blurWeights);
-    
-    // Check for WebGL errors after blur setup
-    const error = gl.getError();
-    if (error !== gl.NO_ERROR) {
-      console.error('WebGL error in setBlurUniforms:', error);
-    }
   }
 
-  setGlassUniforms(screenPos, screenSize, camera, zIndex, showRectangleNodes = false) {
+  setGlassUniforms(screenPos, screenSize, camera, zIndex) {
     const gl = this.gl;
     
     // Bind textures
@@ -318,12 +289,6 @@ export class LiquidGlassNodeRenderer {
     gl.bindTexture(gl.TEXTURE_2D, this.bgFbo.tex);
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, this.vBlurFbo.tex);
-
-    // **KEY FIX**: Check if background is empty and adjust glass parameters
-    // **SAFETY**: Use a simple heuristic instead of reading pixels to avoid feedback loops
-    // If showRectangleNodes is false, we can assume background is mostly empty
-    const isEmpty = !showRectangleNodes; // Simple heuristic based on rendering mode
-    const adjustedStep = isEmpty ? 10 : GLASS_UNIFORMS.step; // Use step 10 for standalone mode
 
     // Set all glass uniforms
     const uniforms = {
@@ -353,7 +318,6 @@ export class LiquidGlassNodeRenderer {
       u_glareAngle: gl.getUniformLocation(this.vertProgram, 'u_glareAngle'),
       u_showShape1: gl.getUniformLocation(this.vertProgram, 'u_showShape1'),
       STEP: gl.getUniformLocation(this.vertProgram, 'STEP'),
-      u_standalone: gl.getUniformLocation(this.vertProgram, 'u_standalone'),
       // Per-node arrays (use [0] for base address)
       u_nodeCount: gl.getUniformLocation(this.vertProgram, 'u_nodeCount'),
       u_nodePositions0: gl.getUniformLocation(this.vertProgram, 'u_nodePositions[0]'),
@@ -384,6 +348,7 @@ export class LiquidGlassNodeRenderer {
     gl.uniform1f(uniforms.u_shapeHeight, screenSize.y);
     gl.uniform1f(uniforms.u_shapeRadius, GLASS_UNIFORMS.shapeRadius);
     gl.uniform1f(uniforms.u_shapeRoundness, GLASS_UNIFORMS.shapeRoundness);
+    gl.uniform4fv(uniforms.u_tint, GLASS_UNIFORMS.tint);
 
     // Set refraction parameters
     gl.uniform1f(uniforms.u_refThickness, GLASS_UNIFORMS.refThickness);
@@ -403,16 +368,7 @@ export class LiquidGlassNodeRenderer {
 
     // Set other parameters
     gl.uniform1i(uniforms.u_showShape1, GLASS_UNIFORMS.showShape1);
-    
-    // **NEW**: Set standalone mode and adjusted step
-    gl.uniform1i(uniforms.STEP, adjustedStep);
-    gl.uniform1i(uniforms.u_standalone, isEmpty ? 1 : 0);
-
-    // **NEW**: Enhanced tint for standalone mode
-    const enhancedTint = isEmpty ? 
-      [0.8, 0.9, 1.0, 0.6] : // More opaque and visible for standalone
-      GLASS_UNIFORMS.tint;
-    gl.uniform4fv(uniforms.u_tint, enhancedTint);
+    gl.uniform1i(uniforms.STEP, GLASS_UNIFORMS.step);
 
     // Per-node data (pass a single node for now)
     if (
@@ -457,30 +413,6 @@ export class LiquidGlassNodeRenderer {
     const p1 = camera.worldToScreen(0, 0);
     const p2 = camera.worldToScreen(worldWidth, worldHeight);
     return { x: Math.abs(p2.x - p1.x), y: Math.abs(p2.y - p1.y) };
-  }
-
-  // **NEW METHOD**: Check if background is effectively empty
-  isBackgroundEmpty() {
-    const gl = this.gl;
-    
-    // **CRITICAL FIX**: Store current framebuffer to restore later
-    const currentFbo = gl.getParameter(gl.FRAMEBUFFER_BINDING);
-    
-    // Read a sample of pixels from the background texture to check if it's mostly empty
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this.bgFbo.fbo);
-    
-    const pixels = new Uint8Array(4);
-    const centerX = Math.floor(this.width / 2);
-    const centerY = Math.floor(this.height / 2);
-    
-    gl.readPixels(centerX, centerY, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
-    
-    // **CRITICAL FIX**: Restore the original framebuffer to prevent feedback loops
-    gl.bindFramebuffer(gl.FRAMEBUFFER, currentFbo);
-    
-    // Consider background empty if the center pixel is very dark (close to background color)
-    const brightness = (pixels[0] + pixels[1] + pixels[2]) / (3 * 255);
-    return brightness < 0.2; // Threshold for "empty" background
   }
 
   dispose() {

@@ -38,8 +38,6 @@ uniform float u_glareAngle;
 uniform int u_showShape1;
 
 uniform int STEP;
-// Add this uniform declaration after the existing ones
-uniform int u_standalone; // Whether we're in standalone mode (no background content)
 
 // Per-node uniforms
 uniform int u_nodeCount;
@@ -669,126 +667,105 @@ void main() {
   } else if (STEP <= 9) {
     if (merged < 0.005) {
       float nmerged = -1.0 * (merged * u_resolution1x.y);
-      
-      // **KEY FIX**: Enhanced standalone mode
-      if (u_standalone == 1) {
-        // Standalone mode - create visible glass without depending on background
-        vec3 glassBase = vec3(0.85, 0.92, 1.0); // Light blue glass
-        vec3 finalColor = mix(glassBase, vec3(u_tint.r, u_tint.g, u_tint.b), 0.3);
-        
-        // Add depth-based shading
-        float depth = clamp(-nmerged / 50.0, 0.0, 1.0);
-        finalColor *= (0.7 + depth * 0.3);
-        
-        // Add rim lighting
-        vec2 normal = closestNodeIndex >= 0 
+
+      // calculate refraction edge factor:
+      float x_R_ratio = 1.0 - nmerged / u_refThickness;
+      float thetaI = asin(pow(x_R_ratio, 2.0));
+      float thetaT = asin(1.0 / u_refFactor * sin(thetaI));
+      float edgeFactor = -1.0 * tan(thetaT - thetaI);
+      // Will have value > 0 inside of shape, force normalize here
+      if (nmerged >= u_refThickness) {
+        edgeFactor = 0.0;
+      }
+
+      if (edgeFactor <= 0.0) {
+        outColor = texture(u_blurredBg, v_uv);
+        outColor = mix(outColor, vec4(u_tint.r, u_tint.g, u_tint.b, 1.0), u_tint.a * 0.8);
+      } else {
+        // calculate parameters
+        vec2 normal = closestNodeIndex >= 0
           ? getNodeNormal(closestNodeIndex, gl_FragCoord.xy)
           : getNormal(p1, p2, gl_FragCoord.xy);
-        float rim = length(normal) * 0.5;
-        finalColor += rim * 0.4;
-        
-        outColor = vec4(finalColor, 0.85);
-      } else {
-        // Original liquid glass logic for when there's background content
-        // calculate refraction edge factor:
-        float x_R_ratio = 1.0 - nmerged / u_refThickness;
-        float thetaI = asin(pow(x_R_ratio, 2.0));
-        float thetaT = asin(1.0 / u_refFactor * sin(thetaI));
-        float edgeFactor = -1.0 * tan(thetaT - thetaI);
-        // Will have value > 0 inside of shape, force normalize here
-        if (nmerged >= u_refThickness) {
-          edgeFactor = 0.0;
-        }
-
-        if (edgeFactor <= 0.0) {
-          outColor = texture(u_blurredBg, v_uv);
-          outColor = mix(outColor, vec4(u_tint.r, u_tint.g, u_tint.b, 1.0), u_tint.a * 0.8);
-        } else {
-          // calculate parameters
-          vec2 normal = closestNodeIndex >= 0
-            ? getNodeNormal(closestNodeIndex, gl_FragCoord.xy)
-            : getNormal(p1, p2, gl_FragCoord.xy);
-          vec4 blurredPixel = getTextureDispersion(
-            u_blurredBg,
-            -normal *
-              edgeFactor *
-              0.05 *
-              u_dpr *
-              vec2(
-                u_resolution.y / (u_resolution1x.x * u_dpr), /* resolution independent */
-                1.0
-              ),
-            u_refDispersion
-          );
-
-          // basic tint
-          outColor = mix(blurredPixel, vec4(u_tint.r, u_tint.g, u_tint.b, 1.0), u_tint.a * 0.8);
-
-          // add fresnel
-          float fresnelFactor = clamp(
-            pow(
-              1.0 +
-                merged * u_resolution1x.y / 1500.0 * pow(500.0 / u_refFresnelRange, 2.0) +
-                u_refFresnelHardness,
-              5.0
+        vec4 blurredPixel = getTextureDispersion(
+          u_blurredBg,
+          -normal *
+            edgeFactor *
+            0.05 *
+            u_dpr *
+            vec2(
+              u_resolution.y / (u_resolution1x.x * u_dpr), /* resolution independent */
+              1.0
             ),
-            0.0,
-            1.0
-          );
+          u_refDispersion
+        );
 
-          vec3 fresnelTintLCH = SRGB_TO_LCH(
-            mix(vec3(1.0), vec3(u_tint.r, u_tint.g, u_tint.b), u_tint.a * 0.5)
-          );
-          fresnelTintLCH.x += 20.0 * fresnelFactor * u_refFresnelFactor;
-          fresnelTintLCH.x = clamp(fresnelTintLCH.x, 0.0, 100.0);
+        // basic tint
+        outColor = mix(blurredPixel, vec4(u_tint.r, u_tint.g, u_tint.b, 1.0), u_tint.a * 0.8);
 
-          outColor = mix(
-            outColor,
-            vec4(LCH_TO_SRGB(fresnelTintLCH), 1.0),
-            fresnelFactor * u_refFresnelFactor * 0.7 * length(normal)
-          );
+        // add fresnel
+        float fresnelFactor = clamp(
+          pow(
+            1.0 +
+              merged * u_resolution1x.y / 1500.0 * pow(500.0 / u_refFresnelRange, 2.0) +
+              u_refFresnelHardness,
+            5.0
+          ),
+          0.0,
+          1.0
+        );
 
-          // add glare
-          float glareGeoFactor = clamp(
-            pow(
-              1.0 +
-                merged * u_resolution1x.y / 1500.0 * pow(500.0 / u_glareRange, 2.0) +
-                u_glareHardness,
-              5.0
-            ),
-            0.0,
-            1.0
-          );
+        vec3 fresnelTintLCH = SRGB_TO_LCH(
+          mix(vec3(1.0), vec3(u_tint.r, u_tint.g, u_tint.b), u_tint.a * 0.5)
+        );
+        fresnelTintLCH.x += 20.0 * fresnelFactor * u_refFresnelFactor;
+        fresnelTintLCH.x = clamp(fresnelTintLCH.x, 0.0, 100.0);
 
-          float glareAngle = (vec2ToAngle(normalize(normal)) - PI / 4.0 + u_glareAngle) * 2.0;
-          int glareFarside = 0;
-          if (
-            glareAngle > PI * (2.0 - 0.5) && glareAngle < PI * (4.0 - 0.5) ||
-            glareAngle < PI * (0.0 - 0.5)
-          ) {
-            glareFarside = 1;
-          }
-          float glareAngleFactor =
-            (0.5 + sin(glareAngle) * 0.5) *
-            (glareFarside == 1
-              ? 1.2 * u_glareOppositeFactor
-              : 1.2) *
-            u_glareFactor;
-          glareAngleFactor = clamp(pow(glareAngleFactor, 0.1 + u_glareConvergence * 2.0), 0.0, 1.0);
+        outColor = mix(
+          outColor,
+          vec4(LCH_TO_SRGB(fresnelTintLCH), 1.0),
+          fresnelFactor * u_refFresnelFactor * 0.7 * length(normal)
+        );
 
-          vec3 glareTintLCH = SRGB_TO_LCH(
-            mix(blurredPixel.rgb, vec3(u_tint.r, u_tint.g, u_tint.b), u_tint.a * 0.5)
-          );
-          glareTintLCH.x += 150.0 * glareAngleFactor * glareGeoFactor;
-          glareTintLCH.y += 30.0 * glareAngleFactor * glareGeoFactor;
-          glareTintLCH.x = clamp(glareTintLCH.x, 0.0, 120.0);
+        // add glare
+        float glareGeoFactor = clamp(
+          pow(
+            1.0 +
+              merged * u_resolution1x.y / 1500.0 * pow(500.0 / u_glareRange, 2.0) +
+              u_glareHardness,
+            5.0
+          ),
+          0.0,
+          1.0
+        );
 
-          outColor = mix(
-            outColor,
-            vec4(LCH_TO_SRGB(glareTintLCH), 1.0),
-            glareAngleFactor * glareGeoFactor * length(normal)
-          );
+        float glareAngle = (vec2ToAngle(normalize(normal)) - PI / 4.0 + u_glareAngle) * 2.0;
+        int glareFarside = 0;
+        if (
+          glareAngle > PI * (2.0 - 0.5) && glareAngle < PI * (4.0 - 0.5) ||
+          glareAngle < PI * (0.0 - 0.5)
+        ) {
+          glareFarside = 1;
         }
+        float glareAngleFactor =
+          (0.5 + sin(glareAngle) * 0.5) *
+          (glareFarside == 1
+            ? 1.2 * u_glareOppositeFactor
+            : 1.2) *
+          u_glareFactor;
+        glareAngleFactor = clamp(pow(glareAngleFactor, 0.1 + u_glareConvergence * 2.0), 0.0, 1.0);
+
+        vec3 glareTintLCH = SRGB_TO_LCH(
+          mix(blurredPixel.rgb, vec3(u_tint.r, u_tint.g, u_tint.b), u_tint.a * 0.5)
+        );
+        glareTintLCH.x += 150.0 * glareAngleFactor * glareGeoFactor;
+        glareTintLCH.y += 30.0 * glareAngleFactor * glareGeoFactor;
+        glareTintLCH.x = clamp(glareTintLCH.x, 0.0, 120.0);
+
+        outColor = mix(
+          outColor,
+          vec4(LCH_TO_SRGB(glareTintLCH), 1.0),
+          glareAngleFactor * glareGeoFactor * length(normal)
+        );
       }
     } else {
       outColor = texture(u_bg, v_uv);
