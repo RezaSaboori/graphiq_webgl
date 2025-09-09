@@ -290,6 +290,20 @@ export class NodeGraphRenderer {
 
             // 🔧 FIXED LIQUID_GLASS mode - Always render liquid glass nodes
             if (this.renderingMode === 'liquid_glass') {
+                // 🔧 DEBUG: draw solid red quads instead to isolate shader issues
+                if (window && window.DEBUG_LIQUID_GLASS_RED_QUADS) {
+                    for (const node of sortedNodes) {
+                        this.drawNode(
+                            node.position.x,
+                            node.position.y,
+                            node.width || 300,
+                            node.height || 100,
+                            [1.0, 0.0, 0.0, 1.0],
+                            viewProjectionMatrix
+                        );
+                    }
+                    return;
+                }
                 // Always render liquid glass nodes
                 for (const node of sortedNodes) {
                     const sceneRenderCallback = () => {

@@ -86,6 +86,11 @@ export class LiquidGlassNodeRenderer {
       }
       return shader;
     }
+    // DEBUG: Log first 200 chars of shader sources
+    try {
+      console.log('Vertex shader source:', (vertSrc || '').substring(0, 200));
+      console.log('Fragment shader source:', (fragSrc || '').substring(0, 200));
+    } catch (_) {}
     const v = compile(gl.VERTEX_SHADER, vertSrc);
     const f = compile(gl.FRAGMENT_SHADER, fragSrc);
     const prog = gl.createProgram();
@@ -194,6 +199,8 @@ export class LiquidGlassNodeRenderer {
           refFactor: GLASS_UNIFORMS.refFactor
         }
       });
+      console.log('Screen position:', screenPos);
+      console.log('Screen size:', screenSize);
     }
 
     // Early-out if completely out of viewport
@@ -267,9 +274,9 @@ export class LiquidGlassNodeRenderer {
     if (window.DEBUG_LIQUID_GLASS) {
       console.log('Scissor bounds:', { scissorX, scissorY, scissorWidth, scissorHeight });
     }
-    
-    gl.enable(gl.SCISSOR_TEST);
-    gl.scissor(scissorX, scissorY, scissorWidth, scissorHeight);
+    // DEBUG: Temporarily disable scissor test to rule out clipping issues
+    // gl.enable(gl.SCISSOR_TEST);
+    // gl.scissor(scissorX, scissorY, scissorWidth, scissorHeight);
     
     // Set glass uniforms
     this.setGlassUniforms(screenPos, screenSize, camera, z);
@@ -283,7 +290,7 @@ export class LiquidGlassNodeRenderer {
     }
     
     // ✅ RESTORE GL STATE COMPLETELY
-    gl.disable(gl.SCISSOR_TEST);
+    // gl.disable(gl.SCISSOR_TEST);
     gl.useProgram(null);
     
     // Reset texture units
