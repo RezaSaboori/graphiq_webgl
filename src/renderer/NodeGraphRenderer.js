@@ -315,7 +315,7 @@ export class NodeGraphRenderer {
                             .filter(n => n.id !== node.id)
                             .map(n => ({
                                 ...n,
-                                color: '#4d4d4d',
+                                color: '#3d3d3d',
                             }));
                         if (tempNodes.length > 0) {
                             this.instancedRenderer.updateNodes(tempNodes);
