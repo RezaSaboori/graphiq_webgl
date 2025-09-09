@@ -213,20 +213,15 @@ export class LiquidGlassNodeRenderer {
       return;
     }
 
-    // 1. SNAPSHOT BG (INCLUDE NODE CONTENT FOR REFRACTION)
+    // 1. SNAPSHOT BG (CONTENT FOR REFRACTION)
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.bgFbo.fbo);
     gl.viewport(0, 0, this.width, this.height); // ✅ Set viewport for framebuffer
     gl.clearColor(0.12, 0.12, 0.13, 1.0);     // ✅ Use solid background color
     gl.clear(gl.COLOR_BUFFER_BIT);
     
-    // Render scene (should include this node as solid content for refraction)
+    // Render scene content that will be refracted (provided by callback)
     if (sceneRenderCallback) {
       sceneRenderCallback();
-    }
-
-    // Render solid rectangle content for the current node to provide refractive content
-    if (typeof this.renderNodeContent === 'function') {
-      this.renderNodeContent(screenPos, screenSize, camera);
     }
 
     // 2. HORIZONTAL BLUR PASS
@@ -317,54 +312,6 @@ export class LiquidGlassNodeRenderer {
     }
   }
 
-  // Render a simple solid rectangle for the node content into the current framebuffer
-  renderNodeContent(screenPos, screenSize, camera) {
-    const gl = this.gl;
-
-    if (!this.nodeContentProgram) {
-      this.initNodeContentProgram();
-    }
-
-    gl.useProgram(this.nodeContentProgram);
-
-    const vertices = new Float32Array([
-      -0.5, -0.5,
-       0.5, -0.5,
-      -0.5,  0.5,
-       0.5,  0.5
-    ]);
-
-    if (!this.nodeContentVBO) {
-      this.nodeContentVBO = gl.createBuffer();
-    }
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.nodeContentVBO);
-    gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
-
-    const aPosition = gl.getAttribLocation(this.nodeContentProgram, 'a_position');
-    gl.enableVertexAttribArray(aPosition);
-    gl.vertexAttribPointer(aPosition, 2, gl.FLOAT, false, 0, 0);
-
-    const uResolution = gl.getUniformLocation(this.nodeContentProgram, 'u_resolution');
-    const uPosition = gl.getUniformLocation(this.nodeContentProgram, 'u_position');
-    const uSize = gl.getUniformLocation(this.nodeContentProgram, 'u_size');
-    const uColor = gl.getUniformLocation(this.nodeContentProgram, 'u_color');
-
-    gl.uniform2f(uResolution, this.width, this.height);
-    gl.uniform2f(uPosition, screenPos.x, screenPos.y);
-    gl.uniform2f(uSize, screenSize.x, screenSize.y);
-    gl.uniform4f(uColor, 0.2, 0.4, 0.8, 1.0);
-
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-    gl.disableVertexAttribArray(aPosition);
-  }
-
-  // Initialize a basic program to draw a solid rectangle in screen space
-  initNodeContentProgram() {
-    const gl = this.gl;
-    const vertexSource = `#version 300 es\n    in vec2 a_position;\n    uniform vec2 u_resolution;\n    uniform vec2 u_position;\n    uniform vec2 u_size;\n    void main() {\n      vec2 scaledPos = a_position * u_size;\n      vec2 screenPos = (u_position + scaledPos) / u_resolution * 2.0 - 1.0;\n      screenPos.y = -screenPos.y;\n      gl_Position = vec4(screenPos, 0.0, 1.0);\n    }\n  `;
-    const fragmentSource = `#version 300 es\n    precision highp float;\n    uniform vec4 u_color;\n    out vec4 fragColor;\n    void main() {\n      fragColor = u_color;\n    }\n  `;
-    this.nodeContentProgram = this._createProgram(vertexSource, fragmentSource);
-  }
 
   getBlurUniforms(program, sourceTexture) {
     const gl = this.gl;

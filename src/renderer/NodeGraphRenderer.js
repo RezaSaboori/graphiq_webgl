@@ -310,10 +310,10 @@ export class NodeGraphRenderer {
                         this.drawBackground(bgColor, dotColor, dotSpacing, dotRadius);
                         this.edgeRenderer.render(viewProjectionMatrix);
 
-                        // ✅ Render all nodes including current for refraction content
+                        // ✅ Render all nodes with their original colors (no blue highlight)
                         const allNodesForRefraction = sortedNodes.map(n => ({
                             ...n,
-                            color: n.id === node.id ? '#4a90e2' : '#3d3d3d',
+                            color: n.color || '#444444',
                         }));
                         if (allNodesForRefraction.length > 0) {
                             this.instancedRenderer.updateNodes(allNodesForRefraction);
